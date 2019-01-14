@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.dataframe.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -17,36 +16,25 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.junit.AfterClass;
-import org.junit.Before;
+
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataframePivotRestIT extends ESRestTestCase {
+public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
-    private static final String DATAFRAME_ENDPOINT = DataFrameField.REST_BASE_PATH + "jobs/";
-    private boolean indicesCreated = false;
+    protected static final String DATAFRAME_ENDPOINT = DataFrameField.REST_BASE_PATH + "jobs/";
 
-    // preserve indices in order to reuse source indices in several test cases
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Before
-    public void createReviewsIndex() throws IOException {
-
-        // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
-        if (indicesCreated) {
-            return;
-        }
-
+    /**
+     * Create a simple dataset for testing with reviewers, ratings and businesses
+     */
+    protected void createReviewsIndex() throws IOException {
         int[] distributionTable = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1};
 
         final int numDocs = 1000;
@@ -111,22 +99,9 @@ public class DataframePivotRestIT extends ESRestTestCase {
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
-        indicesCreated = true;
     }
 
-    @AfterClass
-    public static void removeIndices() throws Exception {
-        wipeDataFrameJobs();
-        waitForPendingDataFrameTasks();
-        // we disabled wiping indices, but now its time to get rid of them
-        // note: can not use super.cleanUpCluster() as this method must be static
-        wipeIndices();
-    }
-
-    public void testSimplePivot() throws Exception {
-        String jobId = "simplePivot";
-        String dataFrameIndex = "pivot_reviews";
-
+    protected void createPivotReviewsJob(String jobId, String dataFrameIndex) throws IOException {
         final Request createDataframeJobRequest = new Request("PUT", DATAFRAME_ENDPOINT + jobId);
         createDataframeJobRequest.setJsonEntity("{"
                 + " \"index_pattern\": \"reviews\","
@@ -146,86 +121,45 @@ public class DataframePivotRestIT extends ESRestTestCase {
         Map<String, Object> createDataframeJobResponse = entityAsMap(client().performRequest(createDataframeJobRequest));
         assertThat(createDataframeJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         assertTrue(indexExists(dataFrameIndex));
-
-        // start the job
-        final Request startJobRequest = new Request("POST", DATAFRAME_ENDPOINT + jobId + "/_start");
-        Map<String, Object> startJobResponse = entityAsMap(client().performRequest(startJobRequest));
-        assertThat(startJobResponse.get("started"), equalTo(Boolean.TRUE));
-
-        // wait until the dataframe has been created and all data is available
-        waitForDataFrameGeneration(jobId);
-        refreshIndex(dataFrameIndex);
-
-        // we expect 27 documents as there shall be 27 user_id's
-        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
-        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
-
-        // get and check some users
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_20", 3.769230769);
-        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
     }
 
-    private void waitForDataFrameGeneration(String jobId) throws Exception {
-        assertBusy(() -> {
-            long generation = getDataFrameGeneration(jobId);
-            assertEquals(1, generation);
-        }, 30, TimeUnit.SECONDS);
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> getDataFrameJobs() throws IOException {
+        Response response = adminClient().performRequest(new Request("GET", DATAFRAME_ENDPOINT + "_all"));
+        Map<String, Object> jobs = entityAsMap(response);
+        List<Map<String, Object>> jobConfigs = (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
+
+        return jobConfigs == null ? Collections.emptyList() : jobConfigs;
     }
 
-    private int getDataFrameGeneration(String jobId) throws IOException {
+    protected static String getDataFrameIndexerState(String jobId) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + jobId + "/_stats"));
 
         Map<?, ?> jobStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("jobs")).get(0);
-        return (int) XContentMapValues.extractValue("state.generation", jobStatsAsMap);
+        return (String) XContentMapValues.extractValue("state.job_state", jobStatsAsMap);
     }
 
-    private void refreshIndex(String index) throws IOException {
-        assertOK(client().performRequest(new Request("POST", index + "/_refresh")));
+    @AfterClass
+    public static void removeIndices() throws Exception {
+        wipeDataFrameJobs();
+        waitForPendingDataFrameTasks();
+        // we might have disabled wiping indices, but now its time to get rid of them
+        // note: can not use super.cleanUpCluster() as this method must be static
+        wipeIndices();
     }
 
-    private void assertOnePivotValue(String query, double expected) throws IOException {
-        Map<String, Object> searchResult = getAsMap(query);
-
-        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        double actual = (double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
-        assertEquals(expected, actual, 0.000001);
-    }
-
-    private static void wipeDataFrameJobs() throws IOException, InterruptedException {
-        Response response = adminClient().performRequest(new Request("GET", DATAFRAME_ENDPOINT + "_all"));
-        Map<String, Object> jobs = entityAsMap(response);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobConfigs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
-
-        if (jobConfigs == null) {
-            return;
-        }
+    protected static void wipeDataFrameJobs() throws IOException, InterruptedException {
+        List<Map<String, Object>> jobConfigs = getDataFrameJobs();
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             String jobId = (String) jobConfig.get("id");
             Request request = new Request("POST", DATAFRAME_ENDPOINT + jobId + "/_stop");
+            request.addParameter("wait_for_completion", "true");
+            request.addParameter("timeout", "10s");
             request.addParameter("ignore", "404");
             adminClient().performRequest(request);
+            assertEquals("stopped", getDataFrameIndexerState(jobId));
         }
-
-        // TODO this is temporary until the StopDataFrameJob API gains the ability to block until stopped
-        boolean stopped = awaitBusy(() -> {
-            Request request = new Request("GET", DATAFRAME_ENDPOINT + "_all");
-            try {
-                Response jobsResponse = adminClient().performRequest(request);
-                String body = EntityUtils.toString(jobsResponse.getEntity());
-                // If the body contains any of the non-stopped states, at least one job is not finished yet
-                return Arrays.stream(new String[]{"started", "aborting", "stopping", "indexing"}).noneMatch(body::contains);
-            } catch (IOException e) {
-                return false;
-            }
-        }, 10, TimeUnit.SECONDS);
-
-        assertTrue("Timed out waiting for data frame job(s) to stop", stopped);
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             String jobId = (String) jobConfig.get("id");
@@ -233,13 +167,31 @@ public class DataframePivotRestIT extends ESRestTestCase {
             request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
             adminClient().performRequest(request);
         }
+
+        // jobs should be all gone
+        jobConfigs = getDataFrameJobs();
+        assertTrue(jobConfigs.isEmpty());
+
+        // the configuration index should be empty
+        Request request = new Request("GET", DataFrameInternalIndex.INDEX_NAME + "/_search");
+        try {
+            Response searchResponse = adminClient().performRequest(request);
+            Map<String, Object> searchResult = entityAsMap(searchResponse);
+
+            assertEquals(0, XContentMapValues.extractValue("hits.total.value", searchResult));
+        } catch (ResponseException e) {
+            // 404 here just means we had no data frame jobs, true for some tests
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
-    private static void waitForPendingDataFrameTasks() throws Exception {
+    protected static void waitForPendingDataFrameTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(DataFrameField.TASK_NAME) == false);
     }
 
-    private static void wipeIndices() throws IOException {
+    protected static void wipeIndices() throws IOException {
         try {
             adminClient().performRequest(new Request("DELETE", "*"));
         } catch (ResponseException e) {
