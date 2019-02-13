@@ -22,32 +22,53 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PivotConfig implements Writeable, ToXContentObject {
 
     private static final String NAME = "data_frame_transform_pivot";
     private static final ParseField GROUP_BY = new ParseField("group_by");
     private static final ParseField AGGREGATIONS = new ParseField("aggregations");
+    private static final ParseField AGGS = new ParseField("aggs");
+
 
     private final List<GroupConfig> groups;
     private final AggregationConfig aggregationConfig;
 
-    private static final ConstructingObjectParser<PivotConfig, Void> PARSER = createParser(false);
+    private static final ConstructingObjectParser<PivotConfig, Void> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<PivotConfig, Void> LENIENT_PARSER = createParser(true);
 
-    private static ConstructingObjectParser<PivotConfig, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<PivotConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
+    private static ConstructingObjectParser<PivotConfig, Void> createParser(boolean lenient) {
+        ConstructingObjectParser<PivotConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient,
                 args -> {
                     @SuppressWarnings("unchecked")
                     List<GroupConfig> groups = (List<GroupConfig>) args[0];
-                    AggregationConfig aggregationConfig = (AggregationConfig) args[1];
+
+                    // allow "aggs" and "aggregations" but require one to be specified
+                    // if somebody specifies both: throw
+                    AggregationConfig aggregationConfig = null;
+                    if (args[1] != null) {
+                        aggregationConfig = (AggregationConfig) args[1];
+                    }
+
+                    if (args[2] != null) {
+                        if (aggregationConfig != null) {
+                            throw new IllegalArgumentException("Found two aggregation definitions: [aggs] and [aggregations]");
+                        }
+                        aggregationConfig = (AggregationConfig) args[2];
+                    }
+                    if (aggregationConfig == null) {
+                        throw new IllegalArgumentException("Required [aggregations]");
+                    }
+
                     return new PivotConfig(groups, aggregationConfig);
                 });
 
         parser.declareObjectArray(constructorArg(),
-                (p, c) -> (GroupConfig.fromXContent(p, ignoreUnknownFields)), GROUP_BY);
+                (p, c) -> (GroupConfig.fromXContent(p, lenient)), GROUP_BY);
 
-        parser.declareObject(constructorArg(), (p, c) -> AggregationConfig.fromXContent(p), AGGREGATIONS);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), AGGREGATIONS);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), AGGS);
 
         return parser;
     }
@@ -116,7 +137,11 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return Objects.hash(groups, aggregationConfig);
     }
 
-    public static PivotConfig fromXContent(final XContentParser parser, boolean ignoreUnknownFields) throws IOException {
-        return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null) : PARSER.apply(parser, null);
+    public boolean isValid() {
+        return aggregationConfig.isValid();
+    }
+
+    public static PivotConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
+        return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 }

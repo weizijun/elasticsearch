@@ -43,6 +43,12 @@ public class GroupConfig implements Writeable, ToXContentObject {
         case TERMS:
             groupSource = in.readOptionalWriteable(TermsGroupSource::new);
             break;
+        case HISTOGRAM:
+            groupSource = in.readOptionalWriteable(HistogramGroupSource::new);
+            break;
+        case DATE_HISTOGRAM:
+            groupSource = in.readOptionalWriteable(DateHistogramGroupSource::new);
+            break;
         default:
             throw new IOException("Unknown group type");
         }
@@ -95,7 +101,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
         return Objects.hash(destinationFieldName, groupType, groupSource);
     }
 
-    public static GroupConfig fromXContent(final XContentParser parser, boolean ignoreUnknownFields) throws IOException {
+    public static GroupConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         String destinationFieldName;
         Type groupType;
         SingleGroupSource<?> groupSource;
@@ -124,7 +130,13 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
         switch (groupType) {
             case TERMS:
-                groupSource = TermsGroupSource.fromXContent(parser, ignoreUnknownFields);
+                groupSource = TermsGroupSource.fromXContent(parser, lenient);
+                break;
+            case HISTOGRAM:
+                groupSource = HistogramGroupSource.fromXContent(parser, lenient);
+                break;
+            case DATE_HISTOGRAM:
+                groupSource = DateHistogramGroupSource.fromXContent(parser, lenient);
                 break;
             default:
                 throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + groupType);
