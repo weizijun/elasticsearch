@@ -180,8 +180,6 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 if (request instanceof HttpEntityEnclosingRequest) {
                     HttpEntity entity = ((HttpEntityEnclosingRequest) request).getEntity();
                     if (entity != null) {
-                        assertTrue("the entity is not repeatable, cannot set it to the response directly",
-                            entity.isRepeatable());
                         httpResponse.setEntity(entity);
                     }
                 }

@@ -251,7 +251,7 @@ public class RestClient implements Closeable {
             return new ResponseOrResponseException(response);
         }
         ResponseException responseException = new ResponseException(response);
-        if (isRetryStatus(statusCode)) {
+        if (isRetryStatus(statusCode) && isEntityRepeatable(request)) {
             //mark host dead and retry against next one
             onFailure(node);
             return new ResponseOrResponseException(responseException);
@@ -466,6 +466,22 @@ public class RestClient implements Closeable {
                 return true;
         }
         return false;
+    }
+
+    /**
+     * when entity is't repeatable, entity can't get more then once. no need to retry
+     * @param request InternalRequest
+     * @return true if entity is repeatable
+     */
+    private boolean isEntityRepeatable(InternalRequest request) {
+        if (request.httpRequest instanceof  HttpEntityEnclosingRequestBase) {
+            HttpEntity entity = ((HttpEntityEnclosingRequestBase)request.httpRequest).getEntity();
+            if (entity != null && !entity.isRepeatable()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void addSuppressedException(Exception suppressedException, Exception currentException) {

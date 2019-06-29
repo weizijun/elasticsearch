@@ -21,10 +21,13 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.http.entity.BasicHttpEntity;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.junit.After;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -287,6 +290,62 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             Request request = new Request("GET", "/200");
             Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(newNodes.get(0).getHost(), response.getHost());
+        }
+    }
+
+    public void testDiffHttpEntityRetry() throws Exception {
+        RestClient restClient = createRestClient(NodeSelector.ANY);
+        int statusCode = randomErrorRetryStatusCode(getRandom());
+        String retryEndpoint = "/" + statusCode;
+
+        // BasicHttpEntity is not repeatable, test no need to retry
+        try  {
+            Request request = new Request("POST", retryEndpoint);
+            final String json = randomAsciiLettersOfLengthBetween(1, 100);
+
+            BasicHttpEntity entity = new BasicHttpEntity();
+            entity.setContent(new ByteArrayInputStream(json.getBytes("UTF-8")));
+            entity.setContentLength((long) json.getBytes("UTF-8").length);
+            request.setEntity(entity);
+
+            RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
+            fail("request should have failed");
+        } catch (ResponseException e) {
+            Response response = e.getResponse();
+            assertEquals(statusCode, response.getStatusLine().getStatusCode());
+            assertEquals(0, e.getSuppressed().length);
+
+            // no retry nodes
+            failureListener.assertNotCalled();
+        }
+
+        // NStringEntity is repeatable, test can retry
+        try  {
+            Request request = new Request("POST", retryEndpoint);
+            final String json = randomAsciiLettersOfLengthBetween(1, 100);
+            request.setJsonEntity(json);
+
+            RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
+            fail("request should have failed");
+        } catch (ResponseException e) {
+            Set<HttpHost> hostsSet = hostsSet();
+            //first request causes all the hosts to be blacklisted, the returned exception holds one suppressed exception each
+            failureListener.assertCalled(nodes);
+            do {
+                Response response = e.getResponse();
+                assertEquals(Integer.parseInt(retryEndpoint.substring(1)), response.getStatusLine().getStatusCode());
+                assertTrue("host [" + response.getHost() + "] not found, most likely used multiple times",
+                    hostsSet.remove(response.getHost()));
+                if (e.getSuppressed().length > 0) {
+                    assertEquals(1, e.getSuppressed().length);
+                    Throwable suppressed = e.getSuppressed()[0];
+                    assertThat(suppressed, instanceOf(ResponseException.class));
+                    e = (ResponseException)suppressed;
+                } else {
+                    e = null;
+                }
+            } while(e != null);
+            assertEquals("every host should have been used but some weren't: " + hostsSet, 0, hostsSet.size());
         }
     }
 
