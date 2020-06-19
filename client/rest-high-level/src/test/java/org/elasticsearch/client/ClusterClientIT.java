@@ -304,16 +304,30 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testClusterHealthNotFoundIndex() throws IOException {
-        createIndex("index", Settings.EMPTY);
-        ClusterHealthRequest request = new ClusterHealthRequest("notexisted-index");
-        request.timeout("5s");
-        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+        {
+            ClusterHealthRequest request = new ClusterHealthRequest("notexisted-index");
+            request.timeout("5s");
+            ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
-        assertThat(response, notNullValue());
-        assertThat(response.isTimedOut(), equalTo(true));
-        assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
-        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
-        assertNoIndices(response);
+            assertThat(response, notNullValue());
+            assertThat(response.isTimedOut(), equalTo(false));
+            assertThat(response.status(), equalTo(RestStatus.OK));
+            assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
+            assertNoIndices(response);
+        }
+
+        {
+            ClusterHealthRequest request = new ClusterHealthRequest("notexisted-index");
+            request.timeout("5s");
+            request.waitForIndicesExists(true);
+            ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+            assertThat(response, notNullValue());
+            assertThat(response.isTimedOut(), equalTo(true));
+            assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
+            assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
+            assertNoIndices(response);
+        }
     }
 
     public void testRemoteInfo() throws Exception {
