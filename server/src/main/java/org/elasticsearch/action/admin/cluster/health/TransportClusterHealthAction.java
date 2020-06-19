@@ -233,7 +233,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForNodes().isEmpty() == false) {
             waitCount++;
         }
-        if (request.waitForIndicesExists() && CollectionUtils.isEmpty(request.indices()) == false) { // check that they actually exists in the meta data
+        if (request.waitForIndicesExists() && CollectionUtils.isEmpty(request.indices()) == false) {
+            // check that they actually exists in the meta data
             waitCount++;
         }
         return waitCount;
