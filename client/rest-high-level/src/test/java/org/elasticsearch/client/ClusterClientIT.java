@@ -312,7 +312,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
             assertThat(response, notNullValue());
             assertThat(response.isTimedOut(), equalTo(false));
             assertThat(response.status(), equalTo(RestStatus.OK));
-            assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
+            assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertNoIndices(response);
         }
 
