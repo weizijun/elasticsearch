@@ -279,6 +279,10 @@
 
 ---
 "cluster health basic test, index not found test":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "wait_for_indices_exists introduce in 8.0.0"
+
   - do:
       cluster.health:
         index: test_index
