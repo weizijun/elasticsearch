@@ -102,6 +102,9 @@ public class ClusterHealthRequestTests extends ESTestCase {
                     Priority.writeTo(expected.waitForEvents(), out);
                 }
                 out.writeBoolean(expected.waitForNoInitializingShards());
+                if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+                    expected.indicesOptions().writeIndicesOptions(out);
+                }
             }
 
             // Deserialize and check the cluster health request
