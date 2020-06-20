@@ -291,4 +291,4 @@
         wait_for_indices_exists: true
         timeout: 1s
 
-  - is_false:  timed_out
+  - is_true:  timed_out
