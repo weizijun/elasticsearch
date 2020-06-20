@@ -286,6 +286,7 @@
   - is_false:  timed_out
 
   - do:
+      catch: request_timeout
       cluster.health:
         index: test_index
         wait_for_indices_exists: true
