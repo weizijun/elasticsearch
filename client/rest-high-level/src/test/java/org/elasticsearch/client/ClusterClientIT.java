@@ -307,7 +307,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         {
             ClusterHealthRequest request = new ClusterHealthRequest("notexisted-index");
             request.timeout("5s");
-            ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+            ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health,
+                highLevelClient().cluster()::healthAsync);
 
             assertThat(response, notNullValue());
             assertThat(response.isTimedOut(), equalTo(false));
@@ -320,7 +321,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
             ClusterHealthRequest request = new ClusterHealthRequest("notexisted-index");
             request.timeout("5s");
             request.waitForIndicesExists(true);
-            ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+            ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health,
+                highLevelClient().cluster()::healthAsync);
 
             assertThat(response, notNullValue());
             assertThat(response.isTimedOut(), equalTo(true));
