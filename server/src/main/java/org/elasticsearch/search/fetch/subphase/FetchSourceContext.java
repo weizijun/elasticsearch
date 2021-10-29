@@ -8,24 +8,28 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -41,7 +45,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     private final boolean fetchSource;
     private final String[] includes;
     private final String[] excludes;
-    private Function<Map<String, ?>, Map<String, Object>> filter;
+    private Function<BytesReference, BytesReference> filter;
 
     public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
         this.fetchSource = fetchSource;
@@ -246,12 +250,26 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns a filter function that expects the source map as an input and returns
-     * the filtered map.
+     * Returns a filter function that expects the source as an input and returns
+     * the filtered source.
      */
-    public Function<Map<String, ?>, Map<String, Object>> getFilter() {
+    public Function<BytesReference, BytesReference> getFilter(final XContentType contentType) {
         if (filter == null) {
-            filter = XContentMapValues.filter(includes, excludes);
+            filter = (sourceBytes) -> {
+                BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
+                try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput)) {
+                    XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
+                        Sets.newHashSet(includes),
+                        Sets.newHashSet(excludes)
+                    );
+                    try (XContentParser parser = contentType.xContent().createParser(parserConfig, sourceBytes.streamInput())) {
+                        builder.copyCurrentStructure(parser);
+                        return BytesReference.bytes(builder);
+                    }
+                } catch (IOException e) {
+                    throw new ElasticsearchException("Error filtering source");
+                }
+            };
         }
         return filter;
     }

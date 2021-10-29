@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -67,17 +68,20 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 }
 
                 // Otherwise, filter the source and add it to the hit.
-                Object value = source.filter(fetchSourceContext);
+                BytesReference filterSource;
                 if (nestedHit) {
-                    value = getNestedSource((Map<String, Object>) value, hitContext);
+                    Object value = source.filter(fetchSourceContext);
+                    value = getNestedSource((BytesReference) value, hitContext);
+                    try {
+                        final int initialCapacity = nestedHit ? 1024 : Math.min(1024, source.internalSourceRef().length());
+                        filterSource = objectToBytes(value, source.sourceContentType(), initialCapacity);
+                    } catch (IOException e) {
+                        throw new ElasticsearchException("Error filtering source", e);
+                    }
+                } else {
+                    filterSource = source.filter(fetchSourceContext);
                 }
-
-                try {
-                    final int initialCapacity = nestedHit ? 1024 : Math.min(1024, source.internalSourceRef().length());
-                    hitContext.hit().sourceRef(objectToBytes(value, source.sourceContentType(), initialCapacity));
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Error filtering source", e);
-                }
+                hitContext.hit().sourceRef(filterSource);
             }
 
             @Override
@@ -109,7 +113,8 @@ public final class FetchSourcePhase implements FetchSubPhase {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {
+    private Map<String, Object> getNestedSource(BytesReference source, HitContext hitContext) {
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, true).v2();
         for (SearchHit.NestedIdentity o = hitContext.hit().getNestedIdentity(); o != null; o = o.getChild()) {
             sourceAsMap = (Map<String, Object>) sourceAsMap.get(o.getField().string());
             if (sourceAsMap == null) {

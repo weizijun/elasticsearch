@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -64,26 +65,40 @@ public class SourceLookup implements Map<String, Object> {
         }
         if (sourceAsBytes != null) {
             Tuple<XContentType, Map<String, Object>> tuple = sourceAsMapAndType(sourceAsBytes);
-            sourceContentType = tuple.v1();
             source = tuple.v2();
             return source;
         }
         try {
-            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
-            fieldReader.accept(docId, sourceFieldVisitor);
-            BytesReference source = sourceFieldVisitor.source();
+            BytesReference source = sourceAsBytes();
             if (source == null) {
                 this.source = emptyMap();
-                this.sourceContentType = null;
             } else {
                 Tuple<XContentType, Map<String, Object>> tuple = sourceAsMapAndType(source);
-                this.sourceContentType = tuple.v1();
                 this.source = tuple.v2();
             }
         } catch (Exception e) {
-            throw new ElasticsearchParseException("failed to parse / load source", e);
+            throw new ElasticsearchParseException("failed to parse source", e);
         }
         return this.source;
+    }
+
+    private BytesReference sourceAsBytes() {
+        if (sourceAsBytes != null) {
+            return sourceAsBytes;
+        }
+
+        try {
+            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
+            fieldReader.accept(docId, sourceFieldVisitor);
+            sourceAsBytes = sourceFieldVisitor.source();
+            if (sourceContentType != null) {
+                sourceContentType = XContentFactory.xContentType(sourceAsBytes.streamInput());
+            }
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("failed to load source", e);
+        }
+
+        return sourceAsBytes;
     }
 
     private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
@@ -204,8 +219,9 @@ public class SourceLookup implements Map<String, Object> {
         return XContentMapValues.extractValue(path, source(), nullValue);
     }
 
-    public Object filter(FetchSourceContext context) {
-        return context.getFilter().apply(source());
+    public BytesReference filter(FetchSourceContext context) {
+        BytesReference source = sourceAsBytes();
+        return context.getFilter(sourceContentType).apply(source);
     }
 
     @Override
