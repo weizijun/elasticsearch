@@ -53,8 +53,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
         parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
-            Sets.newHashSet(includes),
-            Sets.newHashSet(excludes)
+            Sets.newHashSet(this.includes),
+            Sets.newHashSet(this.excludes)
         );
     }
 
