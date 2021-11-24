@@ -45,12 +45,17 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     private final boolean fetchSource;
     private final String[] includes;
     private final String[] excludes;
+    private final XContentParserConfiguration parserConfig;
     private Function<BytesReference, BytesReference> filter;
 
     public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
+            Sets.newHashSet(includes),
+            Sets.newHashSet(excludes)
+        );
     }
 
     public FetchSourceContext(boolean fetchSource) {
@@ -61,6 +66,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         fetchSource = in.readBoolean();
         includes = in.readStringArray();
         excludes = in.readStringArray();
+        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
+            Sets.newHashSet(includes),
+            Sets.newHashSet(excludes)
+        );
     }
 
     @Override
@@ -258,10 +267,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             filter = (sourceBytes) -> {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
                 try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput)) {
-                    XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
-                        Sets.newHashSet(includes),
-                        Sets.newHashSet(excludes)
-                    );
                     try (XContentParser parser = contentType.xContent().createParser(parserConfig, sourceBytes.streamInput())) {
                         builder.copyCurrentStructure(parser);
                         return BytesReference.bytes(builder);
