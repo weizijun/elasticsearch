@@ -261,6 +261,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public Function<BytesReference, BytesReference> getFilter(final XContentType contentType) {
         if (filter == null) {
             filter = (sourceBytes) -> {
+                if (sourceBytes == null) {
+                    return emptyXContent();
+                }
+
                 BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
                 try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput)) {
                     try (XContentParser parser = contentType.xContent().createParser(parserConfig, sourceBytes.streamInput())) {
@@ -269,13 +273,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     }
                 } catch (IOException e) {
                     if (e instanceof JsonGenerationException && e.getMessage().contains("No current event to copy")) {
-                        try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput)) {
-                            builder.startObject();
-                            builder.endObject();
-                            return BytesReference.bytes(builder);
-                        } catch (IOException ioException) {
-                            throw new ElasticsearchException("Error building empty source", e);
-                        }
+                        // if no field hits, return a empty builder
+                        return emptyXContent();
                     } else {
                         throw new ElasticsearchException("Error filtering source", e);
                     }
@@ -283,5 +282,16 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             };
         }
         return filter;
+    }
+
+    private BytesReference emptyXContent() {
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput)) {
+            builder.startObject();
+            builder.endObject();
+            return BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Error building empty source", e);
+        }
     }
 }
