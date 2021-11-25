@@ -188,11 +188,7 @@ public class FilterContentBenchmark {
             includes = null;
             excludes = filters.toArray(Strings.EMPTY_ARRAY);
         }
-        return new FetchSourceContext(
-            true,
-            includes,
-            excludes
-        );
+        return new FetchSourceContext(true, includes, excludes);
     }
 
     private BytesReference filter(XContentParserConfiguration contentParserConfiguration) throws IOException {

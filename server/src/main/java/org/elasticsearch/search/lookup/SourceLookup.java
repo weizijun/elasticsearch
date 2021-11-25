@@ -91,7 +91,7 @@ public class SourceLookup implements Map<String, Object> {
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
             fieldReader.accept(docId, sourceFieldVisitor);
             sourceAsBytes = sourceFieldVisitor.source();
-            if (sourceContentType != null) {
+            if (sourceContentType == null) {
                 sourceContentType = XContentFactory.xContentType(sourceAsBytes.streamInput());
             }
         } catch (Exception e) {
@@ -221,6 +221,13 @@ public class SourceLookup implements Map<String, Object> {
 
     public BytesReference filter(FetchSourceContext context) {
         BytesReference source = sourceAsBytes();
+        if (sourceContentType == null) {
+            try {
+                sourceContentType = XContentFactory.xContentType(source.streamInput());
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to load source content type", e);
+            }
+        }
         return context.getFilter(sourceContentType).apply(source);
     }
 

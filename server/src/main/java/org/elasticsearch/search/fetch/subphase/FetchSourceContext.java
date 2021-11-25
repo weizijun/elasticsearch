@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import com.fasterxml.jackson.core.JsonGenerationException;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -52,10 +54,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
-        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
-            Sets.newHashSet(this.includes),
-            Sets.newHashSet(this.excludes)
-        );
+        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Sets.newHashSet(this.includes), Sets.newHashSet(this.excludes));
     }
 
     public FetchSourceContext(boolean fetchSource) {
@@ -66,10 +65,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         fetchSource = in.readBoolean();
         includes = in.readStringArray();
         excludes = in.readStringArray();
-        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
-            Sets.newHashSet(includes),
-            Sets.newHashSet(excludes)
-        );
+        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Sets.newHashSet(includes), Sets.newHashSet(excludes));
     }
 
     @Override
@@ -272,7 +268,17 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         return BytesReference.bytes(builder);
                     }
                 } catch (IOException e) {
-                    throw new ElasticsearchException("Error filtering source");
+                    if (e instanceof JsonGenerationException && e.getMessage().contains("No current event to copy")) {
+                        try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput)) {
+                            builder.startObject();
+                            builder.endObject();
+                            return BytesReference.bytes(builder);
+                        } catch (IOException ioException) {
+                            throw new ElasticsearchException("Error building empty source", e);
+                        }
+                    } else {
+                        throw new ElasticsearchException("Error filtering source", e);
+                    }
                 }
             };
         }
