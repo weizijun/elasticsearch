@@ -67,16 +67,18 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 }
 
                 // Otherwise, filter the source and add it to the hit.
-                Object value = source.filter(fetchSourceContext);
                 if (nestedHit) {
-                    value = getNestedSource((Map<String, Object>) value, hitContext);
-                }
-
-                try {
-                    final int initialCapacity = nestedHit ? 1024 : Math.min(1024, source.internalSourceRef().length());
-                    hitContext.hit().sourceRef(objectToBytes(value, source.sourceContentType(), initialCapacity));
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Error filtering source", e);
+                    Object filter = source.filter(fetchSourceContext);
+                    Object value = getNestedSource((Map<String, Object>) filter, hitContext);
+                    try {
+                        final int initialCapacity = 1024;
+                        hitContext.hit().sourceRef(objectToBytes(value, source.sourceContentType(), initialCapacity));
+                    } catch (IOException e) {
+                        throw new ElasticsearchException("Error filtering source", e);
+                    }
+                } else {
+                    BytesReference filterSource = source.filterBytes(fetchSourceContext);
+                    hitContext.hit().sourceRef(filterSource);
                 }
             }
 

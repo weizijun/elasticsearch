@@ -8,11 +8,17 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import com.fasterxml.jackson.core.JsonGenerationException;
+
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.RestRequest;
@@ -20,6 +26,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,11 +50,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     private final String[] includes;
     private final String[] excludes;
     private Function<Map<String, ?>, Map<String, Object>> filter;
+    private Function<BytesReference, BytesReference> filterBytes;
+    private final XContentParserConfiguration parserConfig;
 
     public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Sets.newHashSet(this.includes), Sets.newHashSet(this.excludes));
     }
 
     public FetchSourceContext(boolean fetchSource) {
@@ -57,6 +68,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         fetchSource = in.readBoolean();
         includes = in.readStringArray();
         excludes = in.readStringArray();
+        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Sets.newHashSet(includes), Sets.newHashSet(excludes));
     }
 
     @Override
@@ -254,5 +266,48 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             filter = XContentMapValues.filter(includes, excludes);
         }
         return filter;
+    }
+
+    /**
+     * Returns a filter function that expects the source as an input and returns
+     * the filtered source.
+     */
+    public Function<BytesReference, BytesReference> getFilter(final XContentType contentType) {
+        if (filterBytes == null) {
+            filterBytes = (sourceBytes) -> {
+                if (sourceBytes == null || contentType == null) {
+                    return emptyXContent();
+                }
+
+                BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
+                try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput)) {
+                    try (XContentParser parser = contentType.xContent().createParser(parserConfig, sourceBytes.streamInput())) {
+                        builder.copyCurrentStructure(parser);
+                        return BytesReference.bytes(builder);
+                    }
+                } catch (IOException e) {
+                    if (e instanceof JsonGenerationException && e.getMessage().contains("No current event to copy")) {
+                        // if no field hits, return an empty builder
+                        return emptyXContent();
+                    } else {
+                        throw new ElasticsearchException("Error filtering source", e);
+                    }
+
+                }
+            };
+
+        }
+        return filterBytes;
+    }
+
+    private BytesReference emptyXContent() {
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        try (XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput)) {
+            builder.startObject();
+            builder.endObject();
+            return BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Error building empty source", e);
+        }
     }
 }

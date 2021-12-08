@@ -8,11 +8,16 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -58,6 +63,7 @@ public class FilterContentBenchmark {
     private BytesReference source;
     private XContentParserConfiguration parserConfig;
     private Set<String> filters;
+    private FetchSourceContext fetchContext;
 
     @Setup
     public void setup() throws IOException {
@@ -78,6 +84,7 @@ public class FilterContentBenchmark {
         source = readSource(sourceFile);
         filters = buildFilters();
         parserConfig = buildParseConfig();
+        fetchContext = buildFetchSourceContext();
     }
 
     private Set<String> buildFilters() {
@@ -122,6 +129,31 @@ public class FilterContentBenchmark {
         return filter(contentParserConfiguration);
     }
 
+    @Benchmark
+    public BytesReference filterSourceLookupWithMap() throws IOException {
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(source);
+        Object value = lookup.filter(fetchContext);
+        return FetchSourcePhase.objectToBytes(value, XContentType.JSON, Math.min(1024, lookup.internalSourceRef().length()));
+    }
+
+    @Benchmark
+    public BytesReference filterSourceLookupWithCreatedFetchContext() {
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(source);
+        lookup.setSourceContentType(XContentType.JSON);
+        return lookup.filterBytes(fetchContext);
+    }
+
+    @Benchmark
+    public BytesReference filterSourceLookupWithNewFetchContext() {
+        SourceLookup lookup = new SourceLookup();
+        lookup.setSource(source);
+        lookup.setSourceContentType(XContentType.JSON);
+        FetchSourceContext fetchSourceContext = buildFetchSourceContext();
+        return lookup.filterBytes(fetchSourceContext);
+    }
+
     private XContentParserConfiguration buildParseConfig() {
         Set<String> includes;
         Set<String> excludes;
@@ -133,6 +165,19 @@ public class FilterContentBenchmark {
             excludes = filters;
         }
         return XContentParserConfiguration.EMPTY.withFiltering(includes, excludes);
+    }
+
+    private FetchSourceContext buildFetchSourceContext() {
+        String[] includes;
+        String[] excludes;
+        if (inclusive) {
+            includes = filters.toArray(Strings.EMPTY_ARRAY);
+            excludes = null;
+        } else {
+            includes = null;
+            excludes = filters.toArray(Strings.EMPTY_ARRAY);
+        }
+        return new FetchSourceContext(true, includes, excludes);
     }
 
     private BytesReference filter(XContentParserConfiguration contentParserConfiguration) throws IOException {

@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -206,6 +207,17 @@ public class SourceLookup implements Map<String, Object> {
 
     public Object filter(FetchSourceContext context) {
         return context.getFilter().apply(source());
+    }
+
+    public BytesReference filterBytes(FetchSourceContext context) {
+        if (sourceContentType == null && sourceAsBytes != null) {
+            try {
+                sourceContentType = XContentFactory.xContentType(sourceAsBytes.streamInput());
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to load source content type", e);
+            }
+        }
+        return context.getFilter(sourceContentType).apply(sourceAsBytes);
     }
 
     @Override
