@@ -101,7 +101,6 @@ public class SourceLookup implements Map<String, Object> {
         return sourceAsBytes;
     }
 
-
     private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
         return XContentHelper.convertToMap(source, false);
     }
