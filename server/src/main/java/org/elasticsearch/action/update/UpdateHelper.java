@@ -10,13 +10,11 @@ package org.elasticsearch.action.update;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -33,10 +31,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -208,8 +204,6 @@ public class UpdateHelper {
                     getResult.getSeqNo(),
                     getResult.getPrimaryTerm(),
                     getResult.getVersion(),
-                    updatedSourceAsMap,
-                    updateSourceContentType,
                     getResult.internalSourceRef()
                 )
             );
@@ -296,8 +290,6 @@ public class UpdateHelper {
                         getResult.getSeqNo(),
                         getResult.getPrimaryTerm(),
                         getResult.getVersion(),
-                        updatedSourceAsMap,
-                        updateSourceContentType,
                         getResult.internalSourceRef()
                     )
                 );
@@ -327,8 +319,6 @@ public class UpdateHelper {
         long seqNo,
         long primaryTerm,
         long version,
-        final Map<String, Object> source,
-        XContentType sourceContentType,
         @Nullable final BytesReference sourceAsBytes
     ) {
         if (request.fetchSource() == null || request.fetchSource().fetchSource() == false) {
@@ -336,20 +326,10 @@ public class UpdateHelper {
         }
 
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
-        if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
+        if (sourceAsBytes != null && (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0)) {
             SourceLookup sourceLookup = new SourceLookup();
-            sourceLookup.setSource(source);
-            Object value = sourceLookup.filter(request.fetchSource());
-            try {
-                final int initialCapacity = sourceAsBytes != null ? Math.min(1024, sourceAsBytes.length()) : 1024;
-                BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
-                try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
-                    builder.value(value);
-                    sourceFilteredAsBytes = BytesReference.bytes(builder);
-                }
-            } catch (IOException e) {
-                throw new ElasticsearchException("Error filtering source", e);
-            }
+            sourceLookup.setSource(sourceAsBytes);
+            sourceFilteredAsBytes = sourceLookup.filter(request.fetchSource());
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)

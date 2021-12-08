@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -69,9 +70,7 @@ public class SourceLookup implements Map<String, Object> {
             return source;
         }
         try {
-            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
-            fieldReader.accept(docId, sourceFieldVisitor);
-            BytesReference source = sourceFieldVisitor.source();
+            BytesReference source = sourceAsBytes();
             if (source == null) {
                 this.source = emptyMap();
                 this.sourceContentType = null;
@@ -85,6 +84,23 @@ public class SourceLookup implements Map<String, Object> {
         }
         return this.source;
     }
+
+    private BytesReference sourceAsBytes() {
+        if (sourceAsBytes != null) {
+            return sourceAsBytes;
+        }
+
+        try {
+            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
+            fieldReader.accept(docId, sourceFieldVisitor);
+            sourceAsBytes = sourceFieldVisitor.source();
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("failed to load source", e);
+        }
+
+        return sourceAsBytes;
+    }
+
 
     private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
         return XContentHelper.convertToMap(source, false);
@@ -204,8 +220,16 @@ public class SourceLookup implements Map<String, Object> {
         return XContentMapValues.extractValue(path, source(), nullValue);
     }
 
-    public Object filter(FetchSourceContext context) {
-        return context.getFilter().apply(source());
+    public BytesReference filter(FetchSourceContext context) {
+        if (sourceContentType == null) {
+            try {
+                sourceContentType = XContentFactory.xContentType(sourceAsBytes().streamInput());
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to load source content type", e);
+            }
+        }
+
+        return context.getFilter(sourceContentType).apply(sourceAsBytes());
     }
 
     @Override

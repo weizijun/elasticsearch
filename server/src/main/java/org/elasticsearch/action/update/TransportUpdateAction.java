@@ -197,11 +197,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         response.getResult()
                     );
                     if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
-                        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
-                            upsertSourceBytes,
-                            true,
-                            upsertRequest.getContentType()
-                        );
                         update.setGetResult(
                             UpdateHelper.extractGetResult(
                                 request,
@@ -209,8 +204,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 response.getSeqNo(),
                                 response.getPrimaryTerm(),
                                 response.getVersion(),
-                                sourceAndContent.v2(),
-                                sourceAndContent.v1(),
                                 upsertSourceBytes
                             )
                         );
@@ -243,8 +236,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             response.getSeqNo(),
                             response.getPrimaryTerm(),
                             response.getVersion(),
-                            result.updatedSourceAsMap(),
-                            result.updateSourceContentType(),
                             indexSourceBytes
                         )
                     );
@@ -271,8 +262,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             response.getSeqNo(),
                             response.getPrimaryTerm(),
                             response.getVersion(),
-                            result.updatedSourceAsMap(),
-                            result.updateSourceContentType(),
                             null
                         )
                     );

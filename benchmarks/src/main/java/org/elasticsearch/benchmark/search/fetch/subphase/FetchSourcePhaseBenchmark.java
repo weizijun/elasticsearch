@@ -6,7 +6,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -89,11 +88,10 @@ public class FetchSourcePhaseBenchmark {
     }
 
     @Benchmark
-    public BytesReference filterObjects() throws IOException {
+    public BytesReference filterObjects() {
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(sourceBytes);
-        Object value = lookup.filter(fetchContext);
-        return FetchSourcePhase.objectToBytes(value, XContentType.JSON, Math.min(1024, lookup.internalSourceRef().length()));
+        return lookup.filter(fetchContext);
     }
 
     @Benchmark
