@@ -89,6 +89,10 @@ public class RollupAction extends ActionType<AcknowledgedResponse> {
             return rollupConfig;
         }
 
+        public void setRollupConfig(RollupActionConfig rollupConfig) {
+            this.rollupConfig = rollupConfig;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -59,11 +58,13 @@ import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.rollup.Rollup;
+import org.elasticsearch.xpack.rollup.v2.indexer.UnSortedRollupShardIndexer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -83,7 +84,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69799")
+//@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69799")
 public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
@@ -165,7 +166,15 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         IndexShard shard = indexService.getShard(0);
 
         // re-use source index as temp index for test
-        RollupShardIndexer indexer = new RollupShardIndexer(client(), indexService, shard.shardId(), config, index, 2);
+        UnSortedRollupShardIndexer indexer = new UnSortedRollupShardIndexer(
+            new RollupShardStatus(shard.shardId()),
+            client(),
+            indexService,
+            shard.shardId(),
+            config,
+            index,
+            2
+        );
         indexer.execute();
         // assert that files are deleted
         assertThat(indexer.tmpFilesDeleted, equalTo(indexer.tmpFiles));
@@ -187,7 +196,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         rollup(index, rollupIndex, config);
         assertRollupIndex(config, index, rollupIndex);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(index, rollupIndex, config));
-        assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
+        assertThat(exception.getMessage(), containsString("Invalid index name [" + rollupIndex + "], rollup index already exists"));
     }
 
     public void testTemporaryIndexCannotBeCreatedAlreadyExists() {
