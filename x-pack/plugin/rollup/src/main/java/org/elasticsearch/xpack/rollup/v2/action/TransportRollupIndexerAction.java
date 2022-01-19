@@ -36,9 +36,12 @@ import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.v2.indexer.SortedRollupShardIndexer;
+import org.elasticsearch.xpack.rollup.v2.indexer.TimeSeriesIndexSearcher;
+import org.elasticsearch.xpack.rollup.v2.indexer.TimeSeriesRollupShardIndexer;
 import org.elasticsearch.xpack.rollup.v2.indexer.UnSortedRollupShardIndexer;
 
 import java.io.IOException;
+import java.sql.Time;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -123,7 +126,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
         String tmpIndexName = TMP_INDEX_PREFIX + request.getRollupIndex();
         if (isRollupTimeSeries(indexService.getIndexSettings(), request.getRollupConfig().getGroupConfig())) {
-            new SortedRollupShardIndexer(
+            new TimeSeriesRollupShardIndexer(
                 (RollupShardStatus) task.getStatus(),
                 client,
                 indexService,

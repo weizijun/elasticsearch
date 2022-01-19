@@ -189,84 +189,9 @@ public class SortedRollupShardIndexer extends RollupShardIndexer {
         );
     }
 
-
-    private void computeBucketMultiSegmentsOld(SegmentRollupContext[] segmentRollupContexts) throws IOException {
-        long startTime = System.currentTimeMillis();
-        BucketKey currentKey = null;
-        final AtomicInteger docCount = new AtomicInteger(0);
-        final AtomicInteger keyCount = new AtomicInteger(0);
-        Long nextBucket = Long.MIN_VALUE;
-
-        while (true) {
-            if (isCanceled()) {
-                return;
-            }
-
-            List<SegmentRollupContext> currentGroupSegments = getCurrentGroupSegments(segmentRollupContexts);
-            if (currentGroupSegments.size() == 0) {
-                break;
-            }
-
-            while (true) {
-                for (SegmentRollupContext segmentRollupContext : currentGroupSegments) {
-                    for (; segmentRollupContext.currentDocId != NO_MORE_DOCS; segmentRollupContext.currentDocId = segmentRollupContext.iterator.nextDoc()) {
-                        numReceived.incrementAndGet();
-
-                        Long timestamp = getTimeStampValue(segmentRollupContext);
-                        if (timestamp == null) {
-                            continue;
-                        }
-
-                        if (segmentRollupContext.currentGroupFields == null) {
-                            segmentRollupContext.currentGroupFields = getGroupFields(segmentRollupContext);
-                        }
-
-                        List<Object> groupFields;
-                        if (segmentRollupContext.currentGroupFields != null) {
-                            groupFields = segmentRollupContext.currentGroupFields;
-                            segmentRollupContext.currentGroupFields = null;
-                        } else {
-                            groupFields = getGroupFields(segmentRollupContext);
-                        }
-
-                        if (currentKey == null) {
-                            Long currentBucket = rounding.round(timestamp);
-                            nextBucket = rounding.nextRoundingValue(currentBucket);
-                            currentKey = new BucketKey(currentBucket, groupFields);
-                        } else {
-                            if (false == Objects.equals(currentKey.groupFields, groupFields)) {
-                                // store group fields
-                                segmentRollupContext.currentGroupFields = groupFields;
-                                break;
-                            } else if (timestamp >= nextBucket || timestamp < currentKey.timestamp) {
-                                break;
-                            }
-                        }
-
-                        collectMetrics(segmentRollupContext, (count) -> docCount.addAndGet(count));
-                    }
-                }
-
-                boolean index = indexCurrentBucket(currentKey, docCount, keyCount);
-                if (index) {
-                    currentKey = null;
-                } else {
-                    break;
-                }
-            }
-        }
-
-        logger.debug(
-            "[{}] rollup build total bucket cost[{}], keyCount [{}]",
-            indexShard.shardId(),
-            (System.currentTimeMillis() - startTime),
-            keyCount
-        );
-    }
-
     private void computeBucketSingeSegment(SegmentRollupContext segmentRollupContext) throws IOException {
         long startTime = System.currentTimeMillis();
-        BucketKey currentKey = null;
+        AtomicReference<BucketKey> currentKey = new AtomicReference<>();
         final AtomicInteger docCount = new AtomicInteger(0);
         final AtomicInteger keyCount = new AtomicInteger(0);
         Long nextBucket = Long.MIN_VALUE;
@@ -285,14 +210,14 @@ public class SortedRollupShardIndexer extends RollupShardIndexer {
 
                 List<Object> groupFields = getGroupFields(segmentRollupContext);
 
-                if (currentKey == null) {
+                if (currentKey.get() == null) {
                     Long currentBucket = rounding.round(timestamp);
                     nextBucket = rounding.nextRoundingValue(currentBucket);
-                    currentKey = new BucketKey(currentBucket, groupFields);
+                    currentKey.set(new BucketKey(currentBucket, groupFields));
                 } else {
-                    if (false == Objects.equals(currentKey.groupFields, groupFields)
+                    if (false == Objects.equals(currentKey.get().groupFields, groupFields)
                         || timestamp >= nextBucket
-                        || timestamp < currentKey.timestamp) {
+                        || timestamp < currentKey.get().timestamp) {
                         break;
                     }
                 }
