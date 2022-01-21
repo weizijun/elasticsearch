@@ -227,7 +227,7 @@ public class SortedRollupShardIndexer extends RollupShardIndexer {
 
             boolean index = indexCurrentBucket(currentKey, docCount, keyCount);
             if (index) {
-                currentKey = null;
+                currentKey.set(null);
             } else {
                 break;
             }
@@ -242,7 +242,7 @@ public class SortedRollupShardIndexer extends RollupShardIndexer {
     }
 
     private boolean indexCurrentBucket(AtomicReference<BucketKey> currentKey, AtomicInteger docCount, AtomicInteger keyCount) throws IOException {
-        if (currentKey != null) {
+        if (currentKey.get() != null) {
             indexBucket(currentKey.get(), docCount.get());
             currentKey.set(null);
             docCount.set(0);

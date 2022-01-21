@@ -52,7 +52,10 @@ public class TimeSeriesRollupShardIndexer extends RollupShardIndexer {
         long start = System.currentTimeMillis();
         try (searcher; bulkProcessor) {
             TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(searcher);
-            timeSeriesIndexSearcher.search(new MatchAllDocsQuery(), new TimeSeriesCollector());
+            TimeSeriesCollector timeSeriesCollector = new TimeSeriesCollector();
+            timeSeriesCollector.preCollection();
+            timeSeriesIndexSearcher.search(new MatchAllDocsQuery(), timeSeriesCollector);
+            timeSeriesCollector.postCollection();
             bulkProcessor.flush();
         }
 
@@ -68,9 +71,11 @@ public class TimeSeriesRollupShardIndexer extends RollupShardIndexer {
         }
 
         logger.info(
-            "sorted rollup execute [{}], cost [{}], Successfully sent [{}], indexed [{}], failed[{}]",
+            "sorted rollup execute [{}], cost [{}], Received [{}], Skip [{}], Successfully sent [{}], indexed [{}], failed[{}]",
             indexShard.shardId(),
             (System.currentTimeMillis() - start),
+            numReceived.get(),
+            numSkip.get(),
             numSent.get(),
             numIndexed.get(),
             numFailed.get()
@@ -123,14 +128,15 @@ public class TimeSeriesRollupShardIndexer extends RollupShardIndexer {
                         }
                     }
 
-                    if (false == Objects.equals(currentKey.get().groupFields, groupFields)
-                        || timestamp >= nextBucket.get()
-                        || timestamp < currentKey.get().timestamp) {
+                    if (currentKey.get() != null
+                        && (false == Objects.equals(currentKey.get().groupFields, groupFields)
+                            || timestamp >= nextBucket.get()
+                            || timestamp < currentKey.get().timestamp)) {
                         indexBucket(currentKey.get(), docCount.get());
+                        keyCount.incrementAndGet();
                         // reset
                         currentKey.set(null);
                         docCount.set(0);
-                        keyCount.incrementAndGet();
                         resetMetricCollectors();
                     }
 
