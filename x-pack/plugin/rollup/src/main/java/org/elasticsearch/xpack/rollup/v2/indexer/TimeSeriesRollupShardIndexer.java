@@ -123,25 +123,23 @@ public class TimeSeriesRollupShardIndexer extends RollupShardIndexer {
                         }
                     }
 
+                    if (false == Objects.equals(currentKey.get().groupFields, groupFields)
+                        || timestamp >= nextBucket.get()
+                        || timestamp < currentKey.get().timestamp) {
+                        indexBucket(currentKey.get(), docCount.get());
+                        // reset
+                        currentKey.set(null);
+                        docCount.set(0);
+                        keyCount.incrementAndGet();
+                        resetMetricCollectors();
+                    }
+
                     if (currentKey.get() == null) {
                         Long currentBucket = rounding.round(timestamp);
                         nextBucket.set(rounding.nextRoundingValue(currentBucket));
                         currentKey.set(new BucketKey(currentBucket, groupFields));
-                    } else {
-                        if (false == Objects.equals(currentKey.get().groupFields, groupFields)
-                            || timestamp >= nextBucket.get()
-                            || timestamp < currentKey.get().timestamp) {
-                            indexBucket(currentKey.get(), docCount.get());
-                            currentKey.set(null);
-                            docCount.set(0);
-                            keyCount.incrementAndGet();
-                            resetMetricCollectors();
-
-                            Long currentBucket = rounding.round(timestamp);
-                            nextBucket.set(rounding.nextRoundingValue(currentBucket));
-                            currentKey.set(new BucketKey(currentBucket, groupFields));
-                        }
                     }
+
                     docCount.addAndGet(docCountProvider.getDocCount(doc));
                     for (LeafMetricField metricField : metricsFieldLeaf) {
                         metricField.collectMetric(doc);
