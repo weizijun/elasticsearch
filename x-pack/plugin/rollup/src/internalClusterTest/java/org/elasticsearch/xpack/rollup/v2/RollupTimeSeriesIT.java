@@ -32,7 +32,7 @@ public class RollupTimeSeriesIT extends RollupIntegTestCase {
             .prepareCreate(index)
             .setSettings(
                 Settings.builder()
-                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_shards", randomIntBetween(1, 3))
                     .put(IndexSettings.MODE.getKey(), "time_series")
                     .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "categorical_1")
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), 1L)
@@ -65,7 +65,30 @@ public class RollupTimeSeriesIT extends RollupIntegTestCase {
             .get();
     }
 
-    public void testTermsGrouping() throws IOException {
+    public void testNormalTermsGrouping() throws IOException {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("@timestamp");
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field("@timestamp", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .field("categorical_2", randomAlphaOfLength(1))
+            .field("numeric_1", randomDouble())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+        );
+        bulkIndex(sourceSupplier);
+        rollup(index, rollupIndex, config);
+
+        RollupActionConfig newConfig = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+        );
+        assertRollupIndex(newConfig, index, rollupIndex);
+    }
+
+    public void testTsidTermsGrouping() throws IOException {
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("@timestamp");
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
@@ -84,6 +107,29 @@ public class RollupTimeSeriesIT extends RollupIntegTestCase {
         RollupActionConfig newConfig = new RollupActionConfig(
             new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1", "categorical_2")),
             Collections.singletonList(new MetricConfig("numeric_1", List.of("max", "min", "value_count", "avg")))
+        );
+        assertRollupIndex(newConfig, index, rollupIndex);
+    }
+
+    public void testTsidAndOtherTerms() throws IOException {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("@timestamp");
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field("@timestamp", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .field("categorical_2", randomAlphaOfLength(1))
+            .field("numeric_1", randomDouble())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("_tsid", "categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+        );
+        bulkIndex(sourceSupplier);
+        rollup(index, rollupIndex, config);
+
+        RollupActionConfig newConfig = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1", "categorical_2")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
         );
         assertRollupIndex(newConfig, index, rollupIndex);
     }

@@ -78,7 +78,7 @@ public class FieldValueFetcher {
 
     public LeafMetricField getMetricFieldLeaf(LeafReaderContext context, MetricCollector[] metricCollectors) {
         LeafFieldData leafFieldData = fieldData.load(context);
-        return new NumberLeafMetricField(name, metricCollectors, leafFieldData);
+        return new NumberLeafMetricField(metricCollectors, leafFieldData);
     }
 
     Object format(Object value) {

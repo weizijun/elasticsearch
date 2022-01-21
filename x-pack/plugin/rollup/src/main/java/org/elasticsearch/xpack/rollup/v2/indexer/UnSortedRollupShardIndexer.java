@@ -136,15 +136,16 @@ public class UnSortedRollupShardIndexer extends RollupShardIndexer {
 
             bulkProcessor.flush();
         }
-        // TODO: check that numIndexed == numSent, otherwise throw an exception
+
         logger.info(
-            "[{}] rollup cost [{}], Successfully sent [{}], indexed [{}], failed[{}], loop count [{}]",
+            "sorted rollup execute [{}], cost [{}], Received [{}], Skip [{}], Successfully sent [{}], indexed [{}], failed[{}]",
             indexShard.shardId(),
             (System.currentTimeMillis() - start),
+            numReceived.get(),
+            numSkip.get(),
             numSent.get(),
             numIndexed.get(),
-            numFailed.get(),
-            count
+            numFailed.get()
         );
         status.setStatus(Status.STOP);
         return;

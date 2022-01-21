@@ -35,13 +35,10 @@ import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.rollup.v2.indexer.SortedRollupShardIndexer;
-import org.elasticsearch.xpack.rollup.v2.indexer.TimeSeriesIndexSearcher;
 import org.elasticsearch.xpack.rollup.v2.indexer.TimeSeriesRollupShardIndexer;
 import org.elasticsearch.xpack.rollup.v2.indexer.UnSortedRollupShardIndexer;
 
 import java.io.IOException;
-import java.sql.Time;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 

@@ -17,8 +17,8 @@ import java.io.IOException;
 public class NumberLeafMetricField extends LeafMetricField {
     private final FormattedDocValues formattedDocValues;
 
-    public NumberLeafMetricField(String metricName, MetricCollector[] metricCollectors, LeafFieldData fieldData) {
-        super(metricName, metricCollectors);
+    public NumberLeafMetricField(MetricCollector[] metricCollectors, LeafFieldData fieldData) {
+        super(metricCollectors);
         this.formattedDocValues = fieldData.getFormattedValues(DocValueFormat.RAW);
     }
 

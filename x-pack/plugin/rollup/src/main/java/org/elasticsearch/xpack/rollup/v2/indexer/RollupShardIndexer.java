@@ -326,49 +326,6 @@ public abstract class RollupShardIndexer {
         public String toString() {
             return "BucketKey{" + "timestamp=" + timestamp + ", groupFields=" + groupFields + '}';
         }
-
-        protected static int compareGroup(List<Object> l1, List<Object> l2) {
-            if (l1 == null && l2 == null) {
-                return 0;
-            } else if (l1 == null && l2 != null) {
-                return -1;
-            } else if (l1 != null && l2 == null) {
-                return 1;
-            } else {
-                Iterator<Object> thisIter = l1.iterator();
-                Iterator<Object> otherIter = l2.iterator();
-                while (thisIter.hasNext() && otherIter.hasNext()) {
-                    Object thisField = thisIter.next();
-                    Object otherField = otherIter.next();
-                    int result = compareField(thisField, otherField);
-                    if (result != 0) {
-                        return result;
-                    }
-                }
-
-                if (thisIter.hasNext()) {
-                    return 1;
-                } else if (otherIter.hasNext()) {
-                    return -1;
-                } else {
-                    return 0;
-                }
-            }
-        }
-
-        protected static int compareField(Object o1, Object o2) {
-            if (o1 instanceof Long && o2 instanceof Long) {
-                return Long.compare((Long) o1, (Long) o2);
-            } else if (o1 instanceof Double && o2 instanceof Double) {
-                return Double.compare((Double) o1, (Double) o2);
-            } else if (o1 instanceof BytesRef && o2 instanceof BytesRef) {
-                return ((BytesRef) o1).compareTo((BytesRef) o2);
-            } else if (o1 instanceof String && o2 instanceof String) {
-                return ((String) o1).compareTo((String) o2);
-            } else {
-                return o1.toString().compareTo(o2.toString());
-            }
-        }
     }
 
     protected FormattedDocValues[] leafGroupFetchers(LeafReaderContext context) {

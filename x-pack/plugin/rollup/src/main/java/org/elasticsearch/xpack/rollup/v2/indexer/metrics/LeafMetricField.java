@@ -12,16 +12,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import java.io.IOException;
 
 public abstract class LeafMetricField {
-    private final String metricName;
     protected final MetricCollector[] metricCollectors;
 
-    public LeafMetricField(String metricName, MetricCollector[] metricCollectors) {
-        this.metricName = metricName;
+    public LeafMetricField(MetricCollector[] metricCollectors) {
         this.metricCollectors = metricCollectors;
-    }
-
-    public String getMetricName() {
-        return metricName;
     }
 
     public abstract void collectMetric(int docID) throws IOException;

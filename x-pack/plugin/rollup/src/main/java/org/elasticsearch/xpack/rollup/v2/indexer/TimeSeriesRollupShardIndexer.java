@@ -33,6 +33,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * rollup data in sort mode
+ */
 public class TimeSeriesRollupShardIndexer extends RollupShardIndexer {
     private static final Logger logger = LogManager.getLogger(TimeSeriesRollupShardIndexer.class);
 

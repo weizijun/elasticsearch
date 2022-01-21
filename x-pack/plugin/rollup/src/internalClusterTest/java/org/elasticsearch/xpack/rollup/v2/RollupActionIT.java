@@ -6,21 +6,25 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Locale;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
@@ -29,20 +33,54 @@ import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.rollup.v2.indexer.UnSortedRollupShardIndexer;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RollupActionIT extends RollupIntegTestCase {
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        List plugins = new ArrayList(super.getPlugins());
+        plugins.add(IndexLifecycle.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(LIFECYCLE_HISTORY_INDEX_ENABLED, false).build();
+    }
+
     @Before
     public void init() {
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("test", Collections.emptyMap());
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).actionGet());
+
         client().admin()
             .indices()
             .prepareCreate(index)
-            .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 3)).build())
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", randomIntBetween(1, 3))
+                    .put(LifecycleSettings.LIFECYCLE_NAME, "test")
+                    .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
+                    .build()
+            )
             .setMapping(
                 "date_1",
                 "type=date",
@@ -191,6 +229,10 @@ public class RollupActionIT extends RollupIntegTestCase {
         bulkIndex(sourceSupplier);
         rollup(index, rollupIndex, config);
         assertRollupIndex(config, index, rollupIndex);
+
+        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(rollupIndex).get();
+        assertEquals(indexSettingsResp.getSetting(rollupIndex, LifecycleSettings.LIFECYCLE_NAME), "test");
+        assertEquals(indexSettingsResp.getSetting(rollupIndex, LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE), "true");
     }
 
     public void testHistogramGrouping() throws IOException {

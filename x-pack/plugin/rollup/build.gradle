@@ -17,6 +17,7 @@ dependencies {
   compileOnly project(path: xpackModule('analytics'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('data-streams'))
+  compileOnly project(path: xpackModule('ilm'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
