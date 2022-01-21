@@ -152,7 +152,7 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
      *  but if the index sorting field is a multi value field, it's not a real sorting mode.
      *  when index setting support setting single value field, the method can change to rollup the sorted data
      */
-    private boolean isRollupTimeSeries(IndexSettings indexSettings, RollupActionGroupConfig groupConfig) {
+    static boolean isRollupTimeSeries(IndexSettings indexSettings, RollupActionGroupConfig groupConfig) {
         if (groupConfig == null) {
             return false;
         }
