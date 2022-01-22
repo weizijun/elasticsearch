@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.rollup.v2.indexer.metrics.MetricField;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -602,30 +603,58 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         }
     }
 
+    private static Set<String> rebuildRollupFields(List<String> groupFields, Map<String, Map<String, FieldCapabilities>> fieldCaps) {
+        long wildcardCount = groupFields.stream().filter(field -> field.contains("*")).count();
+        // no wildcard fields
+        if (wildcardCount == 0) {
+            Set.of(groupFields);
+        }
+
+        Set<String> newGroupFields = new LinkedHashSet<>();
+        for (String field : groupFields) {
+            rebuildRollupField(field, fieldCaps, (config) -> newGroupFields.add(config));
+        }
+        return newGroupFields;
+    }
+
     private static RollupActionGroupConfig rebuildRollupGroupConfig(
         RollupActionGroupConfig groupConfig,
         Map<String, Map<String, FieldCapabilities>> fieldCaps
     ) {
-        if (groupConfig == null || groupConfig.getTerms() == null) {
-            return groupConfig;
+        if (groupConfig == null) {
+            return null;
         }
 
-        Set<String> groupFields = Set.of(groupConfig.getTerms().getFields());
-        long wildcardCount = groupFields.stream().filter(field -> field.contains("*")).count();
-        // no wildcard fields
-        if (wildcardCount == 0) {
-            return groupConfig;
+        TermsGroupConfig termsGroupConfig;
+        if (groupConfig.getTerms() != null) {
+            Set<String> groupFields = rebuildRollupFields(List.of(groupConfig.getTerms().getFields()), fieldCaps);
+            if (groupFields.size() == 0) {
+                throw new IllegalArgumentException(
+                    "Could not find a field match the group terms " + List.of(groupConfig.getTerms().getFields())
+                );
+            }
+            termsGroupConfig = new TermsGroupConfig(groupFields.toArray(Strings.EMPTY_ARRAY));
+        } else {
+            termsGroupConfig = null;
         }
 
-        Set<String> newGroupFields = new HashSet<>();
-        for (String field : groupFields) {
-            rebuildRollupField(field, fieldCaps, (config) -> newGroupFields.add(config));
+        HistogramGroupConfig histogramGroupConfig;
+        if (groupConfig.getHistogram() != null) {
+            Set<String> groupFields = rebuildRollupFields(List.of(groupConfig.getHistogram().getFields()), fieldCaps);
+            if (groupFields.size() == 0) {
+                throw new IllegalArgumentException(
+                    "Could not find a field match the group histograms " + List.of(groupConfig.getHistogram().getFields())
+                );
+            }
+            histogramGroupConfig = new HistogramGroupConfig(
+                groupConfig.getHistogram().getInterval(),
+                groupFields.toArray(Strings.EMPTY_ARRAY)
+            );
+        } else {
+            histogramGroupConfig = null;
         }
-        if (newGroupFields.size() == 0) {
-            throw new IllegalArgumentException("Could not find a field match the group terms " + groupFields);
-        }
-        TermsGroupConfig termsGroupConfig = new TermsGroupConfig(newGroupFields.toArray(Strings.EMPTY_ARRAY));
-        return new RollupActionGroupConfig(groupConfig.getDateHistogram(), groupConfig.getHistogram(), termsGroupConfig);
+
+        return new RollupActionGroupConfig(groupConfig.getDateHistogram(), histogramGroupConfig, termsGroupConfig);
     }
 
     private static List<MetricConfig> rebuildRollupMetricConfig(

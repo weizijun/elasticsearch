@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rollup.v2.action;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
@@ -27,9 +28,9 @@ import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,6 +40,7 @@ import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.get
 import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.getSettings;
 import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.rebuildRollupConfig;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportRollupActionTests extends RollupTestCase {
@@ -377,5 +379,108 @@ public class TransportRollupActionTests extends RollupTestCase {
         );
         RollupActionConfig newRollupActionConfig = rebuildRollupConfig(rollupActionConfig, Map.of());
         assertThat(newRollupActionConfig, equalTo(rollupActionConfig));
+    }
+
+    public void testWildcardRebuild() {
+        RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
+            ConfigTestHelpers.randomRollupActionDateHistogramGroupConfig(random()),
+            new HistogramGroupConfig(10, "number1", "wildcard_num*"),
+            new TermsGroupConfig("terms1", "terms2", "wildcard_term*")
+        );
+        List<MetricConfig> metricConfigs = List.of(
+            new MetricConfig("metric1", List.of("max")),
+            new MetricConfig("wildcard_metric*", List.of("max"))
+        );
+        RollupActionConfig rollupActionConfig = new RollupActionConfig(groupConfig, metricConfigs);
+        RollupActionConfig newRollupActionConfig = rebuildRollupConfig(
+            rollupActionConfig,
+            Map.of(
+                "wildcard_num_1",
+                Map.of("double", createFieldCapabilities()),
+                "wildcard_term_1",
+                Map.of("keyword", createFieldCapabilities()),
+                "wildcard_metric_1",
+                Map.of("double", createFieldCapabilities())
+            )
+        );
+
+        RollupActionConfig expected = new RollupActionConfig(
+            new RollupActionGroupConfig(
+                groupConfig.getDateHistogram(),
+                new HistogramGroupConfig(10, "number1", "wildcard_num_1"),
+                new TermsGroupConfig("terms1", "terms2", "wildcard_term_1")
+            ),
+            List.of(new MetricConfig("metric1", List.of("max")), new MetricConfig("wildcard_metric_1", List.of("max")))
+        );
+        assertThat(newRollupActionConfig, equalTo(expected));
+    }
+
+    public void testNotMatchWildcardRebuild() {
+        RollupActionGroupConfig baseGroupConfig = new RollupActionGroupConfig(
+            ConfigTestHelpers.randomRollupActionDateHistogramGroupConfig(random()),
+            new HistogramGroupConfig(10, "wildcard_num*"),
+            new TermsGroupConfig("wildcard_term*")
+        );
+        List<MetricConfig> baseMetricConfigs = List.of(new MetricConfig("wildcard_metric*", List.of("max")));
+
+        Map<String, Map<String, FieldCapabilities>> fieldCaps = Map.of(
+            "wildcard_num_1",
+            Map.of("double", createFieldCapabilities()),
+            "wildcard_term_1",
+            Map.of("keyword", createFieldCapabilities()),
+            "wildcard_metric_1",
+            Map.of("double", createFieldCapabilities())
+        );
+
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> rebuildRollupConfig(
+                    new RollupActionConfig(
+                        new RollupActionGroupConfig(
+                            baseGroupConfig.getDateHistogram(),
+                            baseGroupConfig.getHistogram(),
+                            new TermsGroupConfig("wildcard_no*")
+                        ),
+                        baseMetricConfigs
+                    ),
+                    fieldCaps
+                )
+            );
+            assertThat(e.getMessage(), containsString("Could not find a field match the group terms [wildcard_no*]"));
+        }
+
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> rebuildRollupConfig(
+                    new RollupActionConfig(
+                        new RollupActionGroupConfig(
+                            baseGroupConfig.getDateHistogram(),
+                            new HistogramGroupConfig(10, "wildcard_no*"),
+                            baseGroupConfig.getTerms()
+                        ),
+                        baseMetricConfigs
+                    ),
+                    fieldCaps
+                )
+            );
+            assertThat(e.getMessage(), containsString("Could not find a field match the group histograms [wildcard_no*]"));
+        }
+
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> rebuildRollupConfig(
+                    new RollupActionConfig(baseGroupConfig, List.of(new MetricConfig("wildcard_no*", List.of("max")))),
+                    fieldCaps
+                )
+            );
+            assertThat(e.getMessage(), containsString("Could not find a field match the metric fields [wildcard_no*]"));
+        }
+    }
+
+    private FieldCapabilities createFieldCapabilities() {
+        return new FieldCapabilities("field", "type", false, true, true, null, null, null, Collections.emptyMap());
     }
 }
