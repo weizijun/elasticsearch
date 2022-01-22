@@ -27,14 +27,17 @@ import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.addRollupSettings;
 import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.getMapping;
 import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.getSettings;
+import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.rebuildRollupConfig;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -266,7 +269,7 @@ public class TransportRollupActionTests extends RollupTestCase {
                 "W-SU"
             ),
             new HistogramGroupConfig(10, "number1", "number2"),
-            new TermsGroupConfig("terms1", "terms2")
+            new TermsGroupConfig(TimeSeriesIdFieldMapper.NAME, "terms1", "terms2")
         );
 
         List<MetricConfig> metricConfigs = List.of(
@@ -352,5 +355,27 @@ public class TransportRollupActionTests extends RollupTestCase {
             .endObject();
 
         assertThat(Strings.toString(mapping), is(Strings.toString(expected)));
+    }
+
+    public void testAddRollupSettings() {
+        Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(5));
+        }
+        if (randomBoolean()) {
+            settings.put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, randomBoolean());
+        }
+        Settings newSettings = addRollupSettings(settings.build());
+        Settings expected = settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
+        assertThat(newSettings, equalTo(expected));
+    }
+
+    public void testNoWildcardRebuild() {
+        RollupActionConfig rollupActionConfig = new RollupActionConfig(
+            ConfigTestHelpers.randomRollupActionGroupConfig(random()),
+            ConfigTestHelpers.randomMetricsConfigs(random())
+        );
+        RollupActionConfig newRollupActionConfig = rebuildRollupConfig(rollupActionConfig, Map.of());
+        assertThat(newRollupActionConfig, equalTo(rollupActionConfig));
     }
 }

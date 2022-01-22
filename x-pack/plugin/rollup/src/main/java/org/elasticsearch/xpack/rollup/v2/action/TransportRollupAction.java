@@ -82,6 +82,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * The master rollup action that coordinates
@@ -620,6 +621,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         for (String field : groupFields) {
             rebuildRollupField(field, fieldCaps, (config) -> newGroupFields.add(config));
         }
+        if (newGroupFields.size() == 0) {
+            throw new IllegalArgumentException("Could not find a field match the group terms " + groupFields);
+        }
         TermsGroupConfig termsGroupConfig = new TermsGroupConfig(newGroupFields.toArray(Strings.EMPTY_ARRAY));
         return new RollupActionGroupConfig(groupConfig.getDateHistogram(), groupConfig.getHistogram(), termsGroupConfig);
     }
@@ -642,6 +646,12 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         for (MetricConfig metricConfig : metricConfigs) {
             String field = metricConfig.getField();
             rebuildRollupField(field, fieldCaps, (config) -> newMetricConfigs.add(new MetricConfig(config, metricConfig.getMetrics())));
+        }
+        if (newMetricConfigs.size() == 0) {
+            throw new IllegalArgumentException(
+                "Could not find a field match the metric fields "
+                    + metricConfigs.stream().map(MetricConfig::getField).collect(Collectors.toSet())
+            );
         }
         return newMetricConfigs;
     }

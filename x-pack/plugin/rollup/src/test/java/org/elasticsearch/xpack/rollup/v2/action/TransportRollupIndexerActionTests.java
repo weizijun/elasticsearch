@@ -81,7 +81,7 @@ public class TransportRollupIndexerActionTests extends RollupTestCase {
                 ConfigTestHelpers.randomInterval(),
                 randomZone().getId()
             ),
-            new HistogramGroupConfig(randomLong(), randomAlphaOfLength(5)),
+            new HistogramGroupConfig(randomLongBetween(10, 100), randomAlphaOfLength(5)),
             new TermsGroupConfig(TimeSeriesIdFieldMapper.NAME)
         );
         assertThat(isRollupTimeSeries(newTimeSeriesIndexSettings(), groupConfig), equalTo(false));
