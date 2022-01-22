@@ -185,7 +185,7 @@ public abstract class RollupIntegTestCase extends ESSingleNodeTestCase {
         SearchResponse resp = client().prepareSearch(rollupIndexName).setTrackTotalHits(true).get();
 
         GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndexName).get();
-        if (indexSettingsResp.getSetting(sourceIndex, "index.number_of_shards").equals("1")) {
+        if (indexSettingsResp.getSetting(sourceIndex, "index.number_of_shards").equals("1") && origResp.getBuckets().size() > 0) {
             assertThat(resp.getHits().getTotalHits().value, equalTo(numBuckets));
         }
 

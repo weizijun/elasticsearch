@@ -18,7 +18,6 @@ import java.util.Map;
 public class RollupShardTask extends CancellableTask {
     private String rollupIndex;
     private RollupActionConfig config;
-    private ShardId shardId;
     private volatile RollupShardStatus status;
 
     public RollupShardTask(
@@ -31,10 +30,9 @@ public class RollupShardTask extends CancellableTask {
         Map<String, String> headers,
         ShardId shardId
     ) {
-        super(id, type, action, RollupField.NAME + "_" + rollupIndex, parentTask, headers);
+        super(id, type, action, RollupField.NAME + "_" + rollupIndex + "[" + shardId.id() + "]", parentTask, headers);
         this.rollupIndex = rollupIndex;
         this.config = config;
-        this.shardId = shardId;
         this.status = new RollupShardStatus(shardId);
     }
 

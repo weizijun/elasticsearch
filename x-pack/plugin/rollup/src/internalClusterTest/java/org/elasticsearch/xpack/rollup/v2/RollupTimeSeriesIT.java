@@ -133,4 +133,26 @@ public class RollupTimeSeriesIT extends RollupIntegTestCase {
         );
         assertRollupIndex(newConfig, index, rollupIndex);
     }
+
+    public void testEmptyMetricRollup() throws IOException {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("@timestamp");
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field("@timestamp", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .field("numeric_1", randomDouble())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("_tsid")),
+            Collections.singletonList(new MetricConfig("numeric_2", Collections.singletonList("max")))
+        );
+        bulkIndex(sourceSupplier);
+        rollup(index, rollupIndex, config);
+
+        RollupActionConfig newConfig = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_2", List.of("max")))
+        );
+        assertRollupIndex(newConfig, index, rollupIndex);
+    }
 }

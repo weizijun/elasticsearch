@@ -19,9 +19,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
@@ -33,9 +30,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.rollup.v2.indexer.UnSortedRollupShardIndexer;
 import org.junit.Before;
 
@@ -55,7 +50,7 @@ public class RollupActionIT extends RollupIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        List plugins = new ArrayList(super.getPlugins());
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
         plugins.add(IndexLifecycle.class);
         return plugins;
     }
@@ -91,6 +86,8 @@ public class RollupActionIT extends RollupIntegTestCase {
                 "numeric_nonaggregatable",
                 "type=double,doc_values=false",
                 "categorical_1",
+                "type=keyword",
+                "categorical_2",
                 "type=keyword"
             )
             .get();
@@ -378,6 +375,24 @@ public class RollupActionIT extends RollupIntegTestCase {
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
         );
         assertRollupIndex(newConfig, index, rollupIndex);
+    }
+
+
+    public void testEmptyTermsAndMetricsRollup() throws IOException {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .field("numeric_1", randomDouble())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_2")),
+            Collections.singletonList(new MetricConfig("numeric_2", Collections.singletonList("max")))
+        );
+        bulkIndex(sourceSupplier);
+        rollup(index, rollupIndex, config);
+        assertRollupIndex(config, index, rollupIndex);
     }
 
 }
