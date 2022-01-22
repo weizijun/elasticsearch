@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.rollup.v2.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
@@ -24,7 +22,7 @@ import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupIndexerAction.isRollupTimeSeries;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransportRollupIndexerActionTests extends ESTestCase {
+public class TransportRollupIndexerActionTests extends RollupTestCase {
 
     public void testIsRollupTimeSeries() {
         RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
@@ -115,16 +113,6 @@ public class TransportRollupIndexerActionTests extends ESTestCase {
         );
 
         assertThat(isRollupTimeSeries(newTimeSeriesIndexSettings(), groupConfig), equalTo(false));
-    }
-
-    private IndexSettings newIndexSettings(Settings settings) {
-        Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(settings)
-            .build();
-        return new IndexSettings(IndexMetadata.builder("test").settings(build).build(), Settings.EMPTY);
     }
 
     private IndexSettings newTimeSeriesIndexSettings() {

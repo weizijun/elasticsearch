@@ -7,10 +7,350 @@
 
 package org.elasticsearch.xpack.rollup.v2.action;
 
-import junit.framework.TestCase;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
+import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
+import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
-import org.elasticsearch.test.ESTestCase;
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
-public class TransportRollupActionTests extends ESTestCase {
+import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.getMapping;
+import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.getSettings;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.equalTo;
 
+public class TransportRollupActionTests extends RollupTestCase {
+
+    public void testSettingsFilter() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
+            .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+            .put(IndexMetadata.SETTING_HISTORY_UUID, randomAlphaOfLength(5))
+            .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, randomAlphaOfLength(5))
+            .put(IndexMetadata.SETTING_CREATION_DATE, 0L)
+            .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(5))
+            .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, randomBoolean())
+            .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID_KEY, randomAlphaOfLength(5))
+            .put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME_KEY, randomAlphaOfLength(5))
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, randomAlphaOfLength(5))
+            .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, randomAlphaOfLength(5))
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomAlphaOfLength(5))
+            .build();
+        IndexMetadata indexMetadata = newIndexMetadata(settings);
+        Settings newSettings = getSettings(indexMetadata, null);
+        Settings expected = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        assertThat(newSettings, equalTo(expected));
+    }
+
+    public void testNullTermsSettings() {
+        Settings settings = Settings.builder().build();
+        RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
+            new RollupActionDateHistogramGroupConfig.FixedInterval(
+                DataStreamTimestampFieldMapper.DEFAULT_PATH,
+                ConfigTestHelpers.randomInterval(),
+                randomZone().getId()
+            ),
+            null,
+            null
+        );
+        IndexMetadata indexMetadata = newIndexMetadata(settings);
+        Settings newSettings = getSettings(
+            indexMetadata,
+            new RollupActionConfig(groupConfig, ConfigTestHelpers.randomMetricsConfigs(random()))
+        );
+        Settings expected = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        assertThat(newSettings, equalTo(expected));
+    }
+
+    public void testNotTimestampSettings() {
+        Settings settings = Settings.builder().build();
+        IndexMetadata indexMetadata = newIndexMetadata(settings);
+        Settings newSettings = getSettings(
+            indexMetadata,
+            new RollupActionConfig(
+                ConfigTestHelpers.randomRollupActionGroupConfig(random()),
+                ConfigTestHelpers.randomMetricsConfigs(random())
+            )
+        );
+        Settings expected = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        assertThat(newSettings, equalTo(expected));
+    }
+
+    public void testStandardIndexSettings() {
+        String[] terms = randomArray(1, 5, String[]::new, () -> randomAlphaOfLength(5));
+        Settings settings = Settings.builder().build();
+        RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
+            new RollupActionDateHistogramGroupConfig.FixedInterval(
+                DataStreamTimestampFieldMapper.DEFAULT_PATH,
+                ConfigTestHelpers.randomInterval(),
+                randomZone().getId()
+            ),
+            null,
+            new TermsGroupConfig(terms)
+        );
+        IndexMetadata indexMetadata = newIndexMetadata(settings);
+        Settings newSettings = getSettings(
+            indexMetadata,
+            new RollupActionConfig(groupConfig, ConfigTestHelpers.randomMetricsConfigs(random()))
+        );
+        Settings expected = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), terms)
+            .build();
+        assertThat(newSettings, equalTo(expected));
+    }
+
+    public void testTsidSettings() {
+        String[] terms = randomArray(1, 5, String[]::new, () -> randomAlphaOfLength(5));
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), terms)
+            .build();
+        RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
+            new RollupActionDateHistogramGroupConfig.FixedInterval(
+                DataStreamTimestampFieldMapper.DEFAULT_PATH,
+                ConfigTestHelpers.randomInterval(),
+                randomZone().getId()
+            ),
+            null,
+            new TermsGroupConfig(TimeSeriesIdFieldMapper.NAME)
+        );
+        IndexMetadata indexMetadata = newIndexMetadata(settings);
+        Settings newSettings = getSettings(
+            indexMetadata,
+            new RollupActionConfig(groupConfig, ConfigTestHelpers.randomMetricsConfigs(random()))
+        );
+        Settings expected = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), terms)
+            .build();
+        assertThat(newSettings, equalTo(expected));
+    }
+
+    public void testRoutingPathNotInTermsSettings() {
+        List<String> routingPath = List.of("exist", "not_exist", "wildcard*");
+        String[] terms = { "exist", "wildcard_1", "wildcard_2" };
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .build();
+        RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
+            new RollupActionDateHistogramGroupConfig.FixedInterval(
+                DataStreamTimestampFieldMapper.DEFAULT_PATH,
+                ConfigTestHelpers.randomInterval(),
+                randomZone().getId()
+            ),
+            null,
+            new TermsGroupConfig(terms)
+        );
+        IndexMetadata indexMetadata = newIndexMetadata(settings);
+        Settings newSettings = getSettings(
+            indexMetadata,
+            new RollupActionConfig(groupConfig, ConfigTestHelpers.randomMetricsConfigs(random()))
+        );
+        Settings expected = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), terms)
+            .build();
+        assertThat(newSettings, equalTo(expected));
+    }
+
+    public void testTermNotInRoutingPathSettings() {
+        List<String> routingPath = List.of("exist", "wildcard*");
+        String[] terms = { "exist", "not_exist", "wildcard_1", "wildcard_2" };
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .build();
+        RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
+            new RollupActionDateHistogramGroupConfig.FixedInterval(
+                DataStreamTimestampFieldMapper.DEFAULT_PATH,
+                ConfigTestHelpers.randomInterval(),
+                randomZone().getId()
+            ),
+            null,
+            new TermsGroupConfig(terms)
+        );
+        IndexMetadata indexMetadata = newIndexMetadata(settings);
+        Settings newSettings = getSettings(
+            indexMetadata,
+            new RollupActionConfig(groupConfig, ConfigTestHelpers.randomMetricsConfigs(random()))
+        );
+        Settings expected = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .build();
+        assertThat(newSettings, equalTo(expected));
+    }
+
+    public void testTermsNotMatchWildcardSettings() {
+        List<String> routingPath = List.of("exist", "wildcard*");
+        String[] terms = { "exist", "no_wildcard" };
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .build();
+        RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
+            new RollupActionDateHistogramGroupConfig.FixedInterval(
+                DataStreamTimestampFieldMapper.DEFAULT_PATH,
+                ConfigTestHelpers.randomInterval(),
+                randomZone().getId()
+            ),
+            null,
+            new TermsGroupConfig(terms)
+        );
+        IndexMetadata indexMetadata = newIndexMetadata(settings);
+        Settings newSettings = getSettings(
+            indexMetadata,
+            new RollupActionConfig(groupConfig, ConfigTestHelpers.randomMetricsConfigs(random()))
+        );
+        Settings expected = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), terms)
+            .build();
+        assertThat(newSettings, equalTo(expected));
+    }
+
+    public void testGetMapping() throws IOException {
+        RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
+            new RollupActionDateHistogramGroupConfig.FixedInterval(
+                DataStreamTimestampFieldMapper.DEFAULT_PATH,
+                DateHistogramInterval.MINUTE,
+                "W-SU"
+            ),
+            new HistogramGroupConfig(10, "number1", "number2"),
+            new TermsGroupConfig("terms1", "terms2")
+        );
+
+        List<MetricConfig> metricConfigs = List.of(
+            new MetricConfig("metric1", List.of("max", "min", "sum", "value_count")),
+            new MetricConfig("metric2", List.of("max", "min")),
+            new MetricConfig("metric3", List.of("sum"))
+        );
+
+        RollupActionConfig rollupActionConfig = new RollupActionConfig(groupConfig, metricConfigs);
+        MappingMetadata mappingMetadata = randomBoolean()
+            ? new MappingMetadata("_doc", randomBoolean() ? Map.of(SourceFieldMapper.NAME, Map.of("enabled", "false")) : Map.of())
+            : null;
+        XContentBuilder mapping = getMapping(rollupActionConfig, mappingMetadata);
+        XContentBuilder expected = XContentFactory.jsonBuilder().startObject();
+        if (mappingMetadata != null && mappingMetadata.getSourceAsMap().containsKey(SourceFieldMapper.NAME)) {
+            expected.field(SourceFieldMapper.NAME, mappingMetadata.getSourceAsMap().get(SourceFieldMapper.NAME));
+        }
+        expected.startArray("dynamic_templates")
+            .startObject()
+            .startObject("strings")
+            .field("match_mapping_type", "string")
+            .startObject("mapping")
+            .field("type", "keyword")
+            .field("time_series_dimension", "true")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endArray()
+            .startObject("properties")
+            .startObject("@timestamp")
+            .field("type", "date")
+            .startObject("meta")
+            .field("fixed_interval", "1m")
+            .field("time_zone", "W-SU")
+            .endObject()
+            .endObject()
+            .startObject("number1")
+            .field("type", "double")
+            .startObject("meta")
+            .field("interval", "10")
+            .endObject()
+            .endObject()
+            .startObject("number2")
+            .field("type", "double")
+            .startObject("meta")
+            .field("interval", "10")
+            .endObject()
+            .endObject()
+            .startObject("terms1")
+            .field("type", "keyword")
+            .field("time_series_dimension", "true")
+            .endObject()
+            .startObject("terms2")
+            .field("type", "keyword")
+            .field("time_series_dimension", "true")
+            .endObject()
+            .startObject("metric1")
+            .field("type", "aggregate_metric_double")
+            .startArray("metrics")
+            .value("max")
+            .value("min")
+            .value("sum")
+            .value("value_count")
+            .endArray()
+            .field("default_metric", "value_count")
+            .endObject()
+            .startObject("metric2")
+            .field("type", "aggregate_metric_double")
+            .startArray("metrics")
+            .value("max")
+            .value("min")
+            .endArray()
+            .field("default_metric", "max")
+            .endObject()
+            .startObject("metric3")
+            .field("type", "aggregate_metric_double")
+            .startArray("metrics")
+            .value("sum")
+            .endArray()
+            .field("default_metric", "sum")
+            .endObject()
+            .endObject()
+            .endObject();
+
+        assertThat(Strings.toString(mapping), is(Strings.toString(expected)));
+    }
 }

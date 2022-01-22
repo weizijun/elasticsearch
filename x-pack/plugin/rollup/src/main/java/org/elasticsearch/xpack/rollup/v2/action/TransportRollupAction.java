@@ -38,7 +38,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Glob;
@@ -77,14 +76,12 @@ import org.elasticsearch.xpack.rollup.v2.indexer.metrics.MetricField;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 /**
  * The master rollup action that coordinates
@@ -176,7 +173,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 return;
             }
 
-
             IndexMetadata originalIndexMetadata = state.getMetadata().index(originalIndexName);
             if (originalIndexMetadata == null) {
                 throw new InvalidIndexNameException(originalIndexName, "rollup origin index metadata missing");
@@ -203,7 +199,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 "rollup",
                 tmpIndexName,
                 tmpIndexName
-            ).settings(getSettings(originalIndexMetadata, () -> addTimeSeriesSettings(originalIndexMetadata, request.getRollupConfig())))
+            ).settings(getSettings(originalIndexMetadata, request.getRollupConfig()))
                 .mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
 
             // 2.
@@ -367,10 +363,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         });
     }
 
-    private Settings getSettings(IndexMetadata originalIndexMetadata, Supplier<Settings> timeSeriesSupplier) {
+    static Settings getSettings(IndexMetadata originalIndexMetadata, RollupActionConfig rollupActionConfig) {
         return Settings.builder()
             .put(filterSettings(originalIndexMetadata.getSettings()))
-            .put(timeSeriesSupplier.get())
+            .put(addTimeSeriesSettings(originalIndexMetadata, rollupActionConfig))
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
@@ -419,7 +415,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      *    the rollup index will use the group terms field to set index path
      * 4. if the rollup group terms contain all the routing path fields, the rollup index will reuse the origin index's routing path
      */
-    private Settings addTimeSeriesSettings(IndexMetadata originalIndexMetadata, RollupActionConfig config) {
+    static Settings addTimeSeriesSettings(IndexMetadata originalIndexMetadata, RollupActionConfig config) {
+        if (config == null) {
+            return Settings.EMPTY;
+        }
+
         RollupActionGroupConfig groupConfig = config.getGroupConfig();
         if (groupConfig == null || groupConfig.getTerms() == null || groupConfig.getDateHistogram() == null) {
             return Settings.EMPTY;
@@ -450,7 +450,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         }
 
         List<String> newRoutingPaths = new ArrayList<>();
-        boolean termNotInRoutingPath = false;
+        boolean routingPathNotInTerms = false;
         for (String routingPath : routingPaths) {
             if (terms.contains(routingPath)) {
                 newRoutingPaths.add(routingPath);
@@ -464,16 +464,16 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     }
                 }
                 if (false == matchWildCard) {
-                    termNotInRoutingPath = true;
+                    routingPathNotInTerms = true;
                     break;
                 }
             } else {
-                termNotInRoutingPath = true;
+                routingPathNotInTerms = true;
                 break;
             }
         }
 
-        if (termNotInRoutingPath) {
+        if (routingPathNotInTerms) {
             return defaultTimeSeriesSettings;
         }
 
@@ -483,16 +483,21 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .build();
     }
 
-    private XContentBuilder getMapping(RollupActionConfig config, MappingMetadata mappingMetadata) throws IOException {
+    static XContentBuilder getMapping(RollupActionConfig config, MappingMetadata mappingMetadata) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        getMetadataMapping(builder, mappingMetadata.getSourceAsMap());
+        if (mappingMetadata != null) {
+            getMetadataMapping(builder, mappingMetadata.getSourceAsMap());
+        }
         getDynamicTemplates(builder);
         getProperties(builder, config);
         return builder.endObject();
     }
 
+    /**
+     * TODO: now we add origin index's _source mapping, maybe we can add more metadata mapping
+     */
     private static void getMetadataMapping(XContentBuilder builder, Map<String, Object> mappings) throws IOException {
-        if (mappings.containsKey(SourceFieldMapper.NAME)) {
+        if (mappings != null && mappings.containsKey(SourceFieldMapper.NAME)) {
             builder.field(SourceFieldMapper.NAME, mappings.get(SourceFieldMapper.NAME));
         }
     }
@@ -573,7 +578,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         builder.endObject();
     }
 
-    private void rebuildRollupField(String field, Map<String, Map<String, FieldCapabilities>> fieldCaps, Consumer<String> consumer) {
+    private static void rebuildRollupField(String field, Map<String, Map<String, FieldCapabilities>> fieldCaps, Consumer<String> consumer) {
         Predicate<Map<String, FieldCapabilities>> predicate = (fieldCap) -> {
             boolean isValueType = true;
             for (Map.Entry<String, FieldCapabilities> entry : fieldCap.entrySet()) {
@@ -596,7 +601,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         }
     }
 
-    private RollupActionGroupConfig rebuildRollupGroupConfig(
+    private static RollupActionGroupConfig rebuildRollupGroupConfig(
         RollupActionGroupConfig groupConfig,
         Map<String, Map<String, FieldCapabilities>> fieldCaps
     ) {
@@ -619,7 +624,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         return new RollupActionGroupConfig(groupConfig.getDateHistogram(), groupConfig.getHistogram(), termsGroupConfig);
     }
 
-    private List<MetricConfig> rebuildRollupMetricConfig(
+    private static List<MetricConfig> rebuildRollupMetricConfig(
         List<MetricConfig> metricConfigs,
         Map<String, Map<String, FieldCapabilities>> fieldCaps
     ) {
@@ -641,13 +646,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         return newMetricConfigs;
     }
 
-    private RollupActionConfig rebuildRollupConfig(RollupActionConfig config, Map<String, Map<String, FieldCapabilities>> fieldCaps) {
+    static RollupActionConfig rebuildRollupConfig(RollupActionConfig config, Map<String, Map<String, FieldCapabilities>> fieldCaps) {
         RollupActionGroupConfig groupConfig = rebuildRollupGroupConfig(config.getGroupConfig(), fieldCaps);
         List<MetricConfig> metricConfigs = rebuildRollupMetricConfig(config.getMetricsConfig(), fieldCaps);
         return new RollupActionConfig(groupConfig, metricConfigs);
     }
 
-    private Settings addRollupSettings(Settings originalSettings) {
+    static Settings addRollupSettings(Settings originalSettings) {
         Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true);
         if (originalSettings.hasValue(LifecycleSettings.LIFECYCLE_NAME)) {
             builder.put(LifecycleSettings.LIFECYCLE_NAME, originalSettings.get(LifecycleSettings.LIFECYCLE_NAME));

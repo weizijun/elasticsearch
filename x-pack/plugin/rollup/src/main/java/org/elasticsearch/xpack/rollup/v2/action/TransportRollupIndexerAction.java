@@ -148,7 +148,8 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     /**
      *  if rollup a time_series, and the rollup group are _tsid and @timestamp, it can use a sorted mode to rollup data
      *
-     *  TODO: if rollup config match the index sorting config, it can use a sorted mode to rollup data.
+     *  TODO:
+     *  if rollup config match the index sorting config, it can use a sorted mode to rollup data.
      *  but if the index sorting field is a multi value field, it's not a real sorting mode.
      *  when index setting support setting single value field, the method can change to rollup the sorted data
      */
