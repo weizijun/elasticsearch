@@ -16,8 +16,6 @@ public abstract class MetricCollector {
 
     public abstract void collect(double number);
 
-    public abstract void collectExact(double number);
-
     public abstract Number get();
 
     public abstract void reset();
@@ -32,11 +30,6 @@ public abstract class MetricCollector {
         @Override
         public void collect(double value) {
             this.max = max != null ? Math.max(value, max) : value;
-        }
-
-        @Override
-        public void collectExact(double number) {
-            collect(number);
         }
 
         @Override
@@ -60,11 +53,6 @@ public abstract class MetricCollector {
         @Override
         public void collect(double value) {
             this.min = min != null ? Math.min(value, min) : value;
-        }
-
-        @Override
-        public void collectExact(double number) {
-            collect(number);
         }
 
         @Override
@@ -92,11 +80,6 @@ public abstract class MetricCollector {
         }
 
         @Override
-        public void collectExact(double number) {
-            collect(number);
-        }
-
-        @Override
         public Number get() {
             return sum;
         }
@@ -117,11 +100,6 @@ public abstract class MetricCollector {
         @Override
         public void collect(double value) {
             count++;
-        }
-
-        @Override
-        public void collectExact(double number) {
-            count += number;
         }
 
         @Override

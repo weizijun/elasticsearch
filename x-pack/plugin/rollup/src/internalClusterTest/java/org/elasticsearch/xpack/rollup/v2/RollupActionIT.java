@@ -88,7 +88,9 @@ public class RollupActionIT extends RollupIntegTestCase {
                 "categorical_1",
                 "type=keyword",
                 "categorical_2",
-                "type=keyword"
+                "type=keyword",
+                "@timestamp",
+                "type=date"
             )
             .get();
     }
@@ -377,7 +379,6 @@ public class RollupActionIT extends RollupIntegTestCase {
         assertRollupIndex(newConfig, index, rollupIndex);
     }
 
-
     public void testEmptyTermsAndMetricsRollup() throws IOException {
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
@@ -393,6 +394,44 @@ public class RollupActionIT extends RollupIntegTestCase {
         bulkIndex(sourceSupplier);
         rollup(index, rollupIndex, config);
         assertRollupIndex(config, index, rollupIndex);
+    }
+
+    public void testEmptyDateHistogram() throws IOException {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field("@timestamp", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .field("numeric_1", randomDouble())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_2")),
+            Collections.singletonList(new MetricConfig("numeric_2", Collections.singletonList("max")))
+        );
+        bulkIndex(sourceSupplier);
+        rollup(index, rollupIndex, config);
+        assertRollupIndex(config, index, rollupIndex);
+    }
+
+    public void testRollupToTimeSeriesIndex() throws IOException {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("@timestamp");
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field("@timestamp", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .field("numeric_1", randomDouble())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+        );
+        bulkIndex(sourceSupplier);
+        rollup(index, rollupIndex, config);
+        assertRollupIndex(config, index, rollupIndex);
+
+        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(rollupIndex).get();
+        assertEquals(indexSettingsResp.getSetting(rollupIndex, LifecycleSettings.LIFECYCLE_NAME), "test");
+        assertEquals(indexSettingsResp.getSetting(rollupIndex, LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE), "true");
     }
 
 }

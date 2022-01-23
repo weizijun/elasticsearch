@@ -39,6 +39,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Glob;
 import org.elasticsearch.index.Index;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.rollup.v2.RollupExitException;
 import org.elasticsearch.xpack.rollup.v2.indexer.metrics.MetricField;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -435,6 +437,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         Settings defaultTimeSeriesSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), groupTerms)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(1).toString())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999-1).toString())
             .build();
 
         String indexMode = originalIndexMetadata.getSettings().get(IndexSettings.MODE.getKey());

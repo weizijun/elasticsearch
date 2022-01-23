@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -136,6 +138,8 @@ public class TransportRollupActionTests extends RollupTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), terms)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(1).toString())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999-1).toString())
             .build();
         assertThat(newSettings, equalTo(expected));
     }
@@ -197,6 +201,8 @@ public class TransportRollupActionTests extends RollupTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), terms)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(1).toString())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999-1).toString())
             .build();
         assertThat(newSettings, equalTo(expected));
     }
@@ -259,6 +265,8 @@ public class TransportRollupActionTests extends RollupTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), terms)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(1).toString())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999-1).toString())
             .build();
         assertThat(newSettings, equalTo(expected));
     }

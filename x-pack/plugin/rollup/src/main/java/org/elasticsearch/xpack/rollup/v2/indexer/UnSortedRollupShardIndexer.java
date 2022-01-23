@@ -212,6 +212,9 @@ public class UnSortedRollupShardIndexer extends RollupShardIndexer {
         Long nextRounding = null;
         for (LeafReaderContext leafReaderContext : searcher.getIndexReader().leaves()) {
             PointValues pointValues = leafReaderContext.reader().getPointValues(timestampFetcher.fieldType.name());
+            if (pointValues == null) {
+                continue;
+            }
             final NextRoundingVisitor visitor = new NextRoundingVisitor(rounding, lastRounding);
             try {
                 pointValues.intersect(visitor);
