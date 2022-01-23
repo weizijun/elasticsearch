@@ -11,9 +11,13 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -35,6 +39,7 @@ import org.elasticsearch.xpack.rollup.v2.indexer.UnSortedRollupShardIndexer;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -419,10 +424,11 @@ public class RollupActionIT extends RollupIntegTestCase {
             .startObject()
             .field("@timestamp", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
             .field("categorical_1", randomAlphaOfLength(1))
+            .field("categorical_2", randomAlphaOfLength(1))
             .field("numeric_1", randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
-            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1", "categorical_2")),
             Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
         );
         bulkIndex(sourceSupplier);
@@ -430,8 +436,44 @@ public class RollupActionIT extends RollupIntegTestCase {
         assertRollupIndex(config, index, rollupIndex);
 
         GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(rollupIndex).get();
-        assertEquals(indexSettingsResp.getSetting(rollupIndex, LifecycleSettings.LIFECYCLE_NAME), "test");
-        assertEquals(indexSettingsResp.getSetting(rollupIndex, LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE), "true");
+        assertEquals(
+            indexSettingsResp.getSetting(rollupIndex, IndexSettings.MODE.getKey()),
+            IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT)
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROUTING_PATH.getKey()),
+            "[categorical_1, categorical_2]"
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_START_TIME.getKey()),
+            Instant.ofEpochMilli(1).toString()
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_END_TIME.getKey()),
+            Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999 - 1).toString()
+        );
     }
 
+    public void testRollupInvalidIndexName() {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, null),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max")))
+        );
+        {
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> rollup(null, rollupIndex, config));
+            assertThat(exception.getMessage(), containsString("rollup origin index can not be null"));
+        }
+        {
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> rollup(index, null, config));
+            assertThat(exception.getMessage(), containsString("rollup dest index can not be null"));
+        }
+        {
+            InvalidIndexNameException exception = expectThrows(
+                InvalidIndexNameException.class,
+                () -> rollup("no_index", rollupIndex, config)
+            );
+            assertThat(exception.getMessage(), containsString("Invalid index name [no_index], rollup origin index metadata missing"));
+        }
+    }
 }

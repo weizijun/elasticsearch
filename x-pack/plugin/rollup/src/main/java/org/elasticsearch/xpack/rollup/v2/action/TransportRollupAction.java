@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.rollup.v2.indexer.metrics.MetricField;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -134,14 +133,21 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        String originalIndexName = request.getSourceIndex();
-
-        final String rollupIndexName;
-        if (request.getRollupIndex() == null) {
-            rollupIndexName = "rollup-" + originalIndexName + "-" + UUIDs.randomBase64UUID(Randomness.get());
-        } else {
-            rollupIndexName = request.getRollupIndex();
+        if (request.getSourceIndex() == null) {
+            throw new IllegalArgumentException("rollup origin index can not be null");
         }
+
+        if (request.getRollupIndex() == null) {
+            throw new IllegalArgumentException("rollup dest index can not be null");
+        }
+
+        final String originalIndexName = request.getSourceIndex();
+        IndexMetadata originalIndexMetadata = state.getMetadata().index(originalIndexName);
+        if (originalIndexMetadata == null) {
+            throw new InvalidIndexNameException(originalIndexName, "rollup origin index metadata missing");
+        }
+
+        final String rollupIndexName = request.getRollupIndex();
         validExistsRollupIndex(state, rollupIndexName);
 
         String tmpIndexName = TMP_INDEX_PREFIX + rollupIndexName;
@@ -175,11 +181,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             if (validationException.validationErrors().size() > 0) {
                 listener.onFailure(validationException);
                 return;
-            }
-
-            IndexMetadata originalIndexMetadata = state.getMetadata().index(originalIndexName);
-            if (originalIndexMetadata == null) {
-                throw new InvalidIndexNameException(originalIndexName, "rollup origin index metadata missing");
             }
 
             final XContentBuilder mapping;
@@ -238,7 +239,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                             client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
                                 if (updateSettingsResponse.isAcknowledged()) {
                                     // 5.
-                                    ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
+                                    ResizeRequest resizeRequest = new ResizeRequest(rollupIndexName, tmpIndexName);
                                     resizeRequest.setResizeType(ResizeType.CLONE);
                                     resizeRequest.getTargetIndexRequest().settings(addRollupSettings(originalIndexMetadata.getSettings()));
                                     client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
@@ -438,7 +439,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), groupTerms)
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(1).toString())
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999-1).toString())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999 - 1).toString())
             .build();
 
         String indexMode = originalIndexMetadata.getSettings().get(IndexSettings.MODE.getKey());
