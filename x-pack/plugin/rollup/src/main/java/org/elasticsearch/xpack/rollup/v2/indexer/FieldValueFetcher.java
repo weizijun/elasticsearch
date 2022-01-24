@@ -52,8 +52,8 @@ public class FieldValueFetcher {
     FormattedDocValues getGroupLeaf(LeafReaderContext context) {
         if (format instanceof TimeSeriesIdDocValueFormat) {
             // TODO RAW format use string to save format data, but the _tsid is a binary data.
-            //  it maybe lost bytes when string decode to binary data.
-            //  so here use it's own format, it will decode in indexBucket
+            // it maybe lost bytes when string decode to binary data.
+            // so here use it's own format, it will decode in indexBucket
             return fieldData.load(context).getFormattedValues(format);
         } else {
             final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(DocValueFormat.RAW);

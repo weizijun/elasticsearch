@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.rollup.v2.indexer;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -30,6 +26,10 @@ import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -45,7 +45,7 @@ public class RollupTimeSeriesIT extends RollupIntegTestCase {
                     .put(IndexSettings.MODE.getKey(), "time_series")
                     .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "categorical_1")
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), 1L)
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateUtils.MAX_MILLIS_BEFORE_9999-1)
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateUtils.MAX_MILLIS_BEFORE_9999 - 1)
                     .build()
             )
             .setMapping(
@@ -106,7 +106,7 @@ public class RollupTimeSeriesIT extends RollupIntegTestCase {
         assertThat(indexer.status.getStatus(), equalTo(Status.ROLLING));
         indexer.execute();
         if (indexService.shardIds().size() == 1) {
-            assertThat(indexer.numReceived.get(), equalTo((long)docCount));
+            assertThat(indexer.numReceived.get(), equalTo((long) docCount));
         }
         assertThat(indexer.numSkip.get(), equalTo(0L));
         assertThat(indexer.numSent.get(), equalTo(indexer.numIndexed.get()));
@@ -207,7 +207,6 @@ public class RollupTimeSeriesIT extends RollupIntegTestCase {
         assertRollupIndex(newConfig, index, rollupIndex);
     }
 
-
     public void testCancelRollupIndexer() throws IOException {
         // create rollup config and index documents into source index
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("@timestamp");
@@ -239,10 +238,7 @@ public class RollupTimeSeriesIT extends RollupIntegTestCase {
         );
         indexer.status.setStatus(Status.ABORT);
         {
-            ExecutionCancelledException exception = expectThrows(
-                ExecutionCancelledException.class,
-                () -> indexer.execute()
-            );
+            ExecutionCancelledException exception = expectThrows(ExecutionCancelledException.class, () -> indexer.execute());
             assertThat(exception.getMessage(), containsString("rollup cancelled"));
         }
     }

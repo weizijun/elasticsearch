@@ -485,10 +485,7 @@ public class RollupActionIT extends RollupIntegTestCase {
         }
 
         {
-            IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> rollup(index, rollupIndex, null)
-            );
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> rollup(index, rollupIndex, null));
             assertThat(exception.getMessage(), containsString("rollup config is missing;"));
         }
     }
@@ -525,10 +522,7 @@ public class RollupActionIT extends RollupIntegTestCase {
         );
         indexer.status.setStatus(Status.ABORT);
         {
-            ExecutionCancelledException exception = expectThrows(
-                ExecutionCancelledException.class,
-                () -> indexer.execute()
-            );
+            ExecutionCancelledException exception = expectThrows(ExecutionCancelledException.class, () -> indexer.execute());
             assertThat(exception.getMessage(), containsString("rollup cancelled"));
         }
     }

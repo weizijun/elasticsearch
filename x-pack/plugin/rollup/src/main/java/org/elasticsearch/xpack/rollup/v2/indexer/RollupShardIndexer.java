@@ -119,10 +119,7 @@ public abstract class RollupShardIndexer {
                 null,
                 Collections.emptyMap()
             );
-            this.timestampFetcher = FieldValueFetcher.build(
-                searchExecutionContext,
-                config.getGroupConfig().getDateHistogram().getField()
-            );
+            this.timestampFetcher = FieldValueFetcher.build(searchExecutionContext, config.getGroupConfig().getDateHistogram().getField());
             verifyTimestampField(this.timestampFetcher.fieldType);
             this.rounding = createRounding(config.getGroupConfig().getDateHistogram()).prepareForUnknown();
             this.groupFieldFetchers = new ArrayList<>();
