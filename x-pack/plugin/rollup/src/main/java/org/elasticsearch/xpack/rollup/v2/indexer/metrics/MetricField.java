@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.rollup.v2.indexer.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.rollup.v2.indexer.FieldValueFetcher;
+import org.elasticsearch.xpack.rollup.v2.FieldValueFetcher;
 import org.elasticsearch.xpack.rollup.v2.indexer.metrics.MetricCollector.Max;
 import org.elasticsearch.xpack.rollup.v2.indexer.metrics.MetricCollector.Min;
 import org.elasticsearch.xpack.rollup.v2.indexer.metrics.MetricCollector.Sum;

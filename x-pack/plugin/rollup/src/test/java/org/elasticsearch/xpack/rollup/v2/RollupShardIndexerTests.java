@@ -5,10 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rollup.v2.indexer;
+package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.rollup.v2.indexer.RollupShardIndexer.BucketKey;
+import org.elasticsearch.xpack.rollup.v2.RollupShardIndexer.BucketKey;
 
 import java.util.List;
 

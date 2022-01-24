@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.rollup.v2.action;
+package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.rollup.v2.RollupExitException;
 import org.elasticsearch.xpack.rollup.v2.indexer.metrics.MetricField;
 
 import java.io.IOException;
@@ -218,7 +217,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     // index created
                     // 3.
                     RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
@@ -290,7 +289,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         // Update rollup metadata to include this index
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // Everything went well, time to delete the temporary index
                 deleteTmpIndex(originalIndexName, tmpIndexName, listener, null);
             }

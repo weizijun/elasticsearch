@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus.Status;
+import org.elasticsearch.xpack.rollup.v2.RollupShardIndexer;
 import org.elasticsearch.xpack.rollup.v2.indexer.metrics.LeafMetricField;
 
 import java.io.IOException;
@@ -133,9 +134,9 @@ public class TimeSeriesRollupShardIndexer extends RollupShardIndexer {
                     }
 
                     if (currentKey.get() != null
-                        && (false == Objects.equals(currentKey.get().groupFields, groupFields)
+                        && (false == Objects.equals(currentKey.get().getGroupFields(), groupFields)
                             || timestamp >= nextBucket.get()
-                            || timestamp < currentKey.get().timestamp)) {
+                            || timestamp < currentKey.get().getTimestamp())) {
                         indexBucket(currentKey.get(), docCount.get());
                         keyCount.incrementAndGet();
                         // reset

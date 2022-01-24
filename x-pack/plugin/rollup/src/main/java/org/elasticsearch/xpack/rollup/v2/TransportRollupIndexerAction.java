@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.rollup.v2.action;
+package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -43,7 +43,7 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.TMP_INDEX_PREFIX;
+import static org.elasticsearch.xpack.rollup.v2.TransportRollupAction.TMP_INDEX_PREFIX;
 
 /**
  * A {@link TransportBroadcastAction} that rollups all the shards of a single index into a new one.

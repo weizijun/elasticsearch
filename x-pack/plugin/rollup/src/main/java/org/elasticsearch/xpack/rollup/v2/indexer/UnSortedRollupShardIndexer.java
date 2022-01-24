@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus.Status;
+import org.elasticsearch.xpack.rollup.v2.RollupShardIndexer;
 import org.elasticsearch.xpack.rollup.v2.indexer.metrics.LeafMetricField;
 import org.elasticsearch.xpack.rollup.v2.indexer.metrics.MetricField;
 
@@ -62,8 +63,8 @@ public class UnSortedRollupShardIndexer extends RollupShardIndexer {
     private final CompressingOfflineSorter sorter;
 
     // for testing
-    final Set<String> tmpFiles = new HashSet<>();
-    final Set<String> tmpFilesDeleted = new HashSet<>();
+    public final Set<String> tmpFiles = new HashSet<>();
+    public final Set<String> tmpFilesDeleted = new HashSet<>();
 
     public UnSortedRollupShardIndexer(
         RollupShardStatus rollupShardStatus,
@@ -159,7 +160,7 @@ public class UnSortedRollupShardIndexer extends RollupShardIndexer {
         long nextRoundingLastValue = rounding.nextRoundingValue(nextRounding) - 1;
         try (XExternalRefSorter externalSorter = new XExternalRefSorter(sorter)) {
             long start = System.currentTimeMillis();
-            Query rangeQuery = LongPoint.newRangeQuery(timestampFetcher.fieldType.name(), nextRounding, nextRoundingLastValue);
+            Query rangeQuery = LongPoint.newRangeQuery(timestampFetcher.getFieldType().name(), nextRounding, nextRoundingLastValue);
             searcher.search(rangeQuery, new BucketCollector(nextRounding, externalSorter));
             long searchTime = System.currentTimeMillis();
             logger.debug("current round [{}], search cost [{}]", nextRounding, (searchTime - start));
@@ -211,7 +212,7 @@ public class UnSortedRollupShardIndexer extends RollupShardIndexer {
     private Long findNextRounding(long lastRounding) throws IOException {
         Long nextRounding = null;
         for (LeafReaderContext leafReaderContext : searcher.getIndexReader().leaves()) {
-            PointValues pointValues = leafReaderContext.reader().getPointValues(timestampFetcher.fieldType.name());
+            PointValues pointValues = leafReaderContext.reader().getPointValues(timestampFetcher.getFieldType().name());
             if (pointValues == null) {
                 continue;
             }

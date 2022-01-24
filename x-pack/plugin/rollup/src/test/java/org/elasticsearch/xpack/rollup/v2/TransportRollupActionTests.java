@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rollup.v2.action;
+package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,10 +37,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.addRollupSettings;
-import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.getMapping;
-import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.getSettings;
-import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupAction.rebuildRollupConfig;
+import static org.elasticsearch.xpack.rollup.v2.TransportRollupAction.addRollupSettings;
+import static org.elasticsearch.xpack.rollup.v2.TransportRollupAction.getMapping;
+import static org.elasticsearch.xpack.rollup.v2.TransportRollupAction.getSettings;
+import static org.elasticsearch.xpack.rollup.v2.TransportRollupAction.rebuildRollupConfig;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

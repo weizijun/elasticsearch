@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rollup.v2.indexer;
+package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
 import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus.Status;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.elasticsearch.xpack.rollup.v2.indexer.TimeSeriesRollupShardIndexer;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.rollup.v2.indexer.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.rollup.v2.indexer.FieldValueFetcher;
+import org.elasticsearch.xpack.rollup.v2.FieldValueFetcher;
 
 import java.io.IOException;
 

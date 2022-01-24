@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.rollup.v2.indexer;
+package org.elasticsearch.xpack.rollup.v2;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -92,7 +92,7 @@ public abstract class RollupShardIndexer {
 
     protected RollupShardStatus status;
 
-    RollupShardIndexer(
+    protected RollupShardIndexer(
         RollupShardStatus rollupShardStatus,
         Client client,
         IndexService indexService,
@@ -298,9 +298,17 @@ public abstract class RollupShardIndexer {
         final long timestamp;
         final List<Object> groupFields;
 
-        BucketKey(long timestamp, List<Object> groupFields) {
+        public BucketKey(long timestamp, List<Object> groupFields) {
             this.timestamp = timestamp;
             this.groupFields = groupFields;
+        }
+
+        public long getTimestamp() {
+            return timestamp;
+        }
+
+        public List<Object> getGroupFields() {
+            return groupFields;
         }
 
         @Override

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rollup.v2.action;
+package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
-import static org.elasticsearch.xpack.rollup.v2.action.TransportRollupIndexerAction.isRollupTimeSeries;
+import static org.elasticsearch.xpack.rollup.v2.TransportRollupIndexerAction.isRollupTimeSeries;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportRollupIndexerActionTests extends RollupTestCase {
