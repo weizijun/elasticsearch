@@ -214,7 +214,7 @@
   - match: { old_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { new_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - match: { rolled_over: true }
-  - match: { dry_run: false }`
+  - match: { dry_run: false }
 
   # save the backing index names for later use
   - do:

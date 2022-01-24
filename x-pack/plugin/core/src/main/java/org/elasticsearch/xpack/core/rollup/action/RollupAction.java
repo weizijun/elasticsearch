@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
