@@ -207,7 +207,7 @@
   - is_true: acknowledged
 
   # rollover data stream to create new backing index
-`  - do:
+  - do:
       indices.rollover:
         alias: "simple-data-stream1"
 
