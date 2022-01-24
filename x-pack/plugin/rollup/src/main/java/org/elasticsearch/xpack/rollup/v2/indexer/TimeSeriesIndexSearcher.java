@@ -27,8 +27,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import java.io.IOException;
 
 /**
- * @author weizijun.wzj
- * @date 2022/1/19
+ * TODO: This file was copied from the PR: https://github.com/elastic/elasticsearch/pull/82129
+ * it will delete when the PR is merged
  */
 public class TimeSeriesIndexSearcher {
 

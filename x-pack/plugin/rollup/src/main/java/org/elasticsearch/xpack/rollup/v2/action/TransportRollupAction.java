@@ -33,9 +33,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -133,14 +131,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        if (request.getSourceIndex() == null) {
-            throw new IllegalArgumentException("rollup origin index can not be null");
-        }
-
-        if (request.getRollupIndex() == null) {
-            throw new IllegalArgumentException("rollup dest index can not be null");
-        }
-
         final String originalIndexName = request.getSourceIndex();
         IndexMetadata originalIndexMetadata = state.getMetadata().index(originalIndexName);
         if (originalIndexMetadata == null) {
@@ -406,6 +396,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         // remove time_series settings
         settings.remove(IndexSettings.MODE.getKey());
         settings.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+        settings.remove(IndexSettings.TIME_SERIES_START_TIME.getKey());
+        settings.remove(IndexSettings.TIME_SERIES_END_TIME.getKey());
 
         return settings.build();
     }
@@ -453,6 +445,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             return Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths)
+                .put(
+                    IndexSettings.TIME_SERIES_START_TIME.getKey(),
+                    originalIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+                )
+                .put(
+                    IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                    originalIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
+                )
                 .build();
         }
 
@@ -487,6 +487,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), newRoutingPaths)
+            .put(
+                IndexSettings.TIME_SERIES_START_TIME.getKey(),
+                originalIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+            )
+            .put(
+                IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                originalIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
+            )
             .build();
     }
 
@@ -626,10 +634,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         RollupActionGroupConfig groupConfig,
         Map<String, Map<String, FieldCapabilities>> fieldCaps
     ) {
-        if (groupConfig == null) {
-            return null;
-        }
-
         TermsGroupConfig termsGroupConfig;
         if (groupConfig.getTerms() != null) {
             Set<String> groupFields = rebuildRollupFields(List.of(groupConfig.getTerms().getFields()), fieldCaps);
@@ -666,10 +670,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         List<MetricConfig> metricConfigs,
         Map<String, Map<String, FieldCapabilities>> fieldCaps
     ) {
-        if (metricConfigs == null) {
-            return null;
-        }
-
         long wildcardCount = metricConfigs.stream().filter(metric -> metric.getField().contains("*")).count();
         // no wildcard fields
         if (wildcardCount == 0) {

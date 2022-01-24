@@ -62,6 +62,8 @@ public class TransportRollupActionTests extends RollupTestCase {
             .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, randomAlphaOfLength(5))
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomAlphaOfLength(5))
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(1).toString())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999-1).toString())
             .build();
         IndexMetadata indexMetadata = newIndexMetadata(settings);
         Settings newSettings = getSettings(indexMetadata, null);
@@ -149,6 +151,8 @@ public class TransportRollupActionTests extends RollupTestCase {
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), terms)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(1).toString())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999-1).toString())
             .build();
         RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
             new RollupActionDateHistogramGroupConfig.FixedInterval(
@@ -170,6 +174,8 @@ public class TransportRollupActionTests extends RollupTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), terms)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(1).toString())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999-1).toString())
             .build();
         assertThat(newSettings, equalTo(expected));
     }
@@ -213,6 +219,8 @@ public class TransportRollupActionTests extends RollupTestCase {
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(1).toString())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999-1).toString())
             .build();
         RollupActionGroupConfig groupConfig = new RollupActionGroupConfig(
             new RollupActionDateHistogramGroupConfig.FixedInterval(
@@ -234,6 +242,8 @@ public class TransportRollupActionTests extends RollupTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT))
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(1).toString())
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999-1).toString())
             .build();
         assertThat(newSettings, equalTo(expected));
     }

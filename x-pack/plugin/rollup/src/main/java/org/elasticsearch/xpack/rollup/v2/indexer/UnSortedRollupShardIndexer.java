@@ -62,8 +62,8 @@ public class UnSortedRollupShardIndexer extends RollupShardIndexer {
     private final CompressingOfflineSorter sorter;
 
     // for testing
-    public final Set<String> tmpFiles = new HashSet<>();
-    public final Set<String> tmpFilesDeleted = new HashSet<>();
+    final Set<String> tmpFiles = new HashSet<>();
+    final Set<String> tmpFilesDeleted = new HashSet<>();
 
     public UnSortedRollupShardIndexer(
         RollupShardStatus rollupShardStatus,
@@ -293,9 +293,11 @@ public class UnSortedRollupShardIndexer extends RollupShardIndexer {
                 @Override
                 public void collect(int docID) throws IOException {
                     if (isCanceled()) {
+                        // TODO check if this can throw cancel exception
                         return;
                     }
 
+                    numReceived.incrementAndGet();
                     docCountProvider.setLeafReaderContext(context);
                     List<List<Object>> combinationKeys = new ArrayList<>();
                     for (FormattedDocValues leafField : leafGroupFetchers) {

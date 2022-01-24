@@ -105,6 +105,7 @@ public class TimeSeriesRollupShardIndexer extends RollupShardIndexer {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     if (isCanceled()) {
+                        // TODO check if this can throw cancel exception
                         return;
                     }
 
